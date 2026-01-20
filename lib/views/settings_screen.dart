@@ -47,6 +47,26 @@ class SettingsScreen extends StatelessWidget {
           ),
           const Divider(color: Colors.white10),
           _buildSection(
+            title: '사운드',
+            children: [
+              _buildSwitchTile(
+                icon: Icons.music_note,
+                title: '배경음 (BGM)',
+                subtitle: '앱 실행 시 배경 음악을 재생합니다',
+                value: userVM.isBgmOn,
+                onChanged: (value) => userVM.toggleBgm(value),
+              ),
+              _buildSwitchTile(
+                icon: Icons.volume_up,
+                title: '효과음 (SFX)',
+                subtitle: '버튼 클릭 등의 효과음을 재생합니다',
+                value: userVM.isSfxOn,
+                onChanged: (value) => userVM.toggleSfx(value),
+              ),
+            ],
+          ),
+          const Divider(color: Colors.white10),
+          _buildSection(
             title: '앱 정보',
             children: [
               _buildSettingTile(
@@ -124,6 +144,26 @@ class SettingsScreen extends StatelessWidget {
           ? const Icon(Icons.chevron_right, color: Colors.grey)
           : null,
       onTap: onTap,
+    );
+  }
+
+  Widget _buildSwitchTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: const Color(0xFFFF4D00)),
+      title: Text(title, style: const TextStyle(color: Colors.white)),
+      subtitle: Text(subtitle,
+          style: const TextStyle(color: Colors.grey, fontSize: 12)),
+      trailing: Switch(
+        value: value,
+        activeColor: const Color(0xFFFF4D00),
+        onChanged: onChanged,
+      ),
     );
   }
 

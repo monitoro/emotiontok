@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:signature/signature.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../viewmodels/user_viewmodel.dart';
 import '../viewmodels/venting_viewmodel.dart';
 import '../widgets/burning_animation.dart';
@@ -29,9 +30,28 @@ class _HomeScreenState extends State<HomeScreen>
     exportBackgroundColor: Colors.transparent,
   );
 
+  late AudioPlayer _bgmPlayer;
+  late AudioPlayer _sfxPlayer;
+
   @override
   void initState() {
     super.initState();
+    _bgmPlayer = AudioPlayer();
+    _sfxPlayer = AudioPlayer();
+    _bgmPlayer.setReleaseMode(ReleaseMode.loop);
+
+    // Play BGM if enabled
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final userVM = Provider.of<UserViewModel>(context, listen: false);
+      _updateBgmState(userVM.isBgmOn);
+
+      // Listen to settings changes
+      userVM.addListener(() {
+        if (!mounted) return;
+        _updateBgmState(userVM.isBgmOn);
+      });
+    });
+
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 3),
@@ -46,10 +66,27 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
+    _bgmPlayer.dispose();
+    _sfxPlayer.dispose();
     _pulseController.dispose();
     _textController.dispose();
     _signatureController.dispose();
     super.dispose();
+  }
+
+  void _updateBgmState(bool isBgmOn) async {
+    if (isBgmOn) {
+      if (_bgmPlayer.state != PlayerState.playing) {
+        // Assuming bgm.mp3 exists in assets/sounds/
+        try {
+          await _bgmPlayer.play(AssetSource('sounds/bgm.mp3'), volume: 0.3);
+        } catch (e) {
+          debugPrint('BGM play failed: $e');
+        }
+      }
+    } else {
+      await _bgmPlayer.stop();
+    }
   }
 
   void _startPressing() {
@@ -76,7 +113,17 @@ class _HomeScreenState extends State<HomeScreen>
     final userVM = Provider.of<UserViewModel>(context, listen: false);
 
     // 1. Start burning animation
+    // 1. Start burning animation
     ventingVM.startBurning();
+
+    // Play burning SFX if enabled
+    if (userVM.isSfxOn) {
+      try {
+        _sfxPlayer.play(AssetSource('sounds/explosion.mp3'));
+      } catch (e) {
+        debugPrint('SFX play failed: $e');
+      }
+    }
 
     // 2. Show burning dialog overlay
     showDialog(

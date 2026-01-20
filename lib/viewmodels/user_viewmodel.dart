@@ -14,6 +14,8 @@ class UserViewModel with ChangeNotifier {
   Persona _selectedPersona = Persona.empathy;
   int _totalBurnCount = 0;
   bool _isLoggedIn = false;
+  bool _isBgmOn = true;
+  bool _isSfxOn = true;
 
   String? get nickname => _nickname;
   Persona get selectedPersona => _selectedPersona;
@@ -21,6 +23,8 @@ class UserViewModel with ChangeNotifier {
   int get totalBurnCount => _totalBurnCount;
   int get level => (_totalBurnCount / 5).floor() + 1; // Level up Every 5 burns
   int get expProgress => _totalBurnCount % 5;
+  bool get isBgmOn => _isBgmOn;
+  bool get isSfxOn => _isSfxOn;
 
   UserViewModel() {
     _loadUserData();
@@ -67,6 +71,20 @@ class UserViewModel with ChangeNotifier {
 
   void login() {
     _isLoggedIn = true;
+    notifyListeners();
+  }
+
+  Future<void> toggleBgm(bool value) async {
+    _isBgmOn = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isBgmOn', value);
+    notifyListeners();
+  }
+
+  Future<void> toggleSfx(bool value) async {
+    _isSfxOn = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isSfxOn', value);
     notifyListeners();
   }
 }
