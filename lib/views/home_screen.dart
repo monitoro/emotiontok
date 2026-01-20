@@ -83,6 +83,7 @@ class _HomeScreenState extends State<HomeScreen>
       context: context,
       barrierDismissible: false,
       builder: (context) => BurningAnimation(
+        text: text,
         onComplete: () {
           Navigator.of(context).pop(); // Close dialog
           // 3. Save post and process
