@@ -187,23 +187,33 @@ class _HomeScreenState extends State<HomeScreen>
         ),
         backgroundColor: Colors.transparent,
         actions: [
-          IconButton(
-            icon: Icon(
-              ventingVM.shareToSquare ? Icons.public : Icons.lock,
-              color: ventingVM.shareToSquare
-                  ? const Color(0xFFFF4D00)
-                  : Colors.grey,
-            ),
-            onPressed: () {
-              ventingVM.setShareToSquare(!ventingVM.shareToSquare);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content:
-                      Text(ventingVM.shareToSquare ? '광장에 공유됩니다' : '나만 봅니다'),
-                  duration: const Duration(seconds: 1),
+          Row(
+            children: [
+              Text(
+                ventingVM.shareToSquare ? '광장에 공유' : '나만 보기',
+                style: TextStyle(
+                  color: ventingVM.shareToSquare
+                      ? const Color(0xFFFF4D00)
+                      : Colors.grey,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
                 ),
-              );
-            },
+              ),
+              Switch(
+                value: ventingVM.shareToSquare,
+                activeColor: const Color(0xFFFF4D00),
+                onChanged: (value) {
+                  ventingVM.setShareToSquare(value);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(value ? '광장에 공유됩니다' : '나만 봅니다'),
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(width: 8),
+            ],
           ),
         ],
       ),
@@ -217,7 +227,7 @@ class _HomeScreenState extends State<HomeScreen>
               children: [
                 // Input Area
                 Container(
-                  height: 200, // Fixed height for input area
+                  height: 300, // Increased height for input area
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: const Color(0xFF1E1E1E),
