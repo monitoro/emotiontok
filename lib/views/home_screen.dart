@@ -9,6 +9,7 @@ import '../viewmodels/user_viewmodel.dart';
 import '../viewmodels/venting_viewmodel.dart';
 import '../widgets/burning_animation.dart';
 import '../widgets/doodle_view.dart';
+import '../widgets/point_display.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -235,6 +236,8 @@ class _HomeScreenState extends State<HomeScreen>
         ),
         backgroundColor: Colors.transparent,
         actions: [
+          const PointDisplay(),
+          const SizedBox(width: 8),
           Row(
             children: [
               Text(

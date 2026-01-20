@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../viewmodels/venting_viewmodel.dart';
+import '../widgets/point_display.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
@@ -23,6 +24,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
         title:
             const Text('감정 보관함', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
+        actions: const [
+          PointDisplay(),
+          SizedBox(width: 16),
+        ],
       ),
       body: Column(
         children: [

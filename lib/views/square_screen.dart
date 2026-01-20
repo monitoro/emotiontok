@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../viewmodels/venting_viewmodel.dart';
 import '../viewmodels/user_viewmodel.dart';
 import 'post_detail_screen.dart';
+import '../widgets/point_display.dart';
 
 class SquareScreen extends StatelessWidget {
   const SquareScreen({super.key});
@@ -17,6 +18,10 @@ class SquareScreen extends StatelessWidget {
         title: const Text('타오르는 광장',
             style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
+        actions: const [
+          PointDisplay(),
+          SizedBox(width: 16),
+        ],
       ),
       body: Consumer2<VentingViewModel, UserViewModel>(
         builder: (context, ventingVM, userVM, child) {
