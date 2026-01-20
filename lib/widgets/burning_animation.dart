@@ -18,35 +18,52 @@ class BurningAnimation extends StatefulWidget {
 class _BurningAnimationState extends State<BurningAnimation>
     with TickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<double> _animation;
-  final List<_FireParticle> _particles = [];
+  final List<_ExplosionParticle> _particles = [];
   final Random _random = Random();
+  late Animation<double> _shakeAnimation;
+  late Animation<double> _flashAnimation;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 4),
+      duration: const Duration(milliseconds: 2000), // 짧고 강렬하게
     );
 
-    _animation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInQuad),
+    // 0~0.2초 동안 강한 흔들림 (폭발 충격)
+    _shakeAnimation = Tween<double>(begin: 30.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 0.3, curve: Curves.elasticOut),
+      ),
+    );
+
+    // 초반 섬광 효과
+    _flashAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 0.2, curve: Curves.easeOut),
+      ),
     );
 
     _controller.addListener(() {
-      if (_controller.value > 0.1 && _controller.value < 0.9) {
-        // Generate new particles aggressively during burning phase
-        for (int i = 0; i < 5; i++) {
-          _particles.add(_FireParticle());
+      // 폭발 초기(0.1초 시점)에 대량의 파티클 생성
+      if (_controller.value > 0.05 &&
+          _controller.value < 0.15 &&
+          _particles.length < 100) {
+        for (int i = 0; i < 20; i++) {
+          _particles.add(_ExplosionParticle());
         }
       }
+      // 지속적인 불길 추가
+      if (_controller.value > 0.1 && _controller.value < 0.8) {
+        _particles.add(_ExplosionParticle(isContinuous: true));
+      }
 
-      // Update particles
       for (var particle in _particles) {
         particle.update();
       }
-      _particles.removeWhere((p) => p.isDead);
 
       setState(() {});
     });
@@ -62,194 +79,166 @@ class _BurningAnimationState extends State<BurningAnimation>
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        // Dark overlay background
-        AnimatedBuilder(
-          animation: _animation,
-          builder: (context, child) {
-            return Container(
-              color: Colors.black
-                  .withOpacity((_animation.value * 0.9).clamp(0.0, 0.9)),
-            );
-          },
-        ),
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        // 화면 흔들림 계산
+        final double shakeX = _random.nextDouble() * _shakeAnimation.value -
+            (_shakeAnimation.value / 2);
+        final double shakeY = _random.nextDouble() * _shakeAnimation.value -
+            (_shakeAnimation.value / 2);
 
-        // Burning Paper Content
-        Center(
-          child: AnimatedBuilder(
-            animation: _animation,
-            builder: (context, child) {
-              return ShaderMask(
-                shaderCallback: (bounds) {
-                  // Create a gradient that moves up to simulate burning
-                  return LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    stops: [
-                      _animation.value - 0.2, // Ash/Burnt part
-                      _animation.value, // Burning edge
-                      _animation.value + 0.1, // Intact paper
-                    ],
-                    colors: const [
-                      Colors.transparent, // Already burnt (transparent)
-                      Color(0xFF8B0000), // Burning edge (Dark Red)
-                      Colors.white, // Intact paper
-                    ],
-                  ).createShader(bounds);
-                },
-                blendMode: BlendMode.modulate,
-                child: Container(
-                  width: 300,
-                  constraints: const BoxConstraints(minHeight: 400),
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius:
-                        BorderRadius.circular(2), // Paper-like sharp corners
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        blurRadius: 10,
-                        spreadRadius: 2,
-                      )
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.text.isEmpty ? "..." : widget.text,
-                        style: const TextStyle(
-                          color: Colors.black87,
-                          fontSize: 16,
-                          height: 1.6,
-                          fontFamily: 'Courier', // Typewriter feel
+        return Transform.translate(
+          offset: Offset(shakeX, shakeY),
+          child: Stack(
+            children: [
+              // 1. 배경 (폭발 시 깜빡임)
+              Container(
+                color: Colors.black.withOpacity(
+                  (0.8 + (_flashAnimation.value * 0.2)).clamp(0.0, 0.95),
+                ),
+              ),
+
+              // 2. 종이 및 텍스트 (폭발과 함께 찢어지고 사라짐)
+              if (_controller.value < 0.8)
+                Center(
+                  child: Transform.scale(
+                    scale: 1.0 + (_controller.value * 0.5), // 타면서 약간 커짐
+                    child: Opacity(
+                      opacity:
+                          (1.0 - (_controller.value * 1.5)).clamp(0.0, 1.0),
+                      child: Container(
+                        width: 300,
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(4),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.red.withOpacity(0.5),
+                              blurRadius: 20 + (_controller.value * 50),
+                              spreadRadius: _controller.value * 20,
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          widget.text.isEmpty ? "..." : widget.text,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Courier',
+                            color: Colors.black,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              );
-            },
+
+              // 3. 폭발 및 불꽃 파티클
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: _ExplosionPainter(_particles),
+                ),
+              ),
+
+              // 4. 화이트 플래시 (폭발 순간)
+              if (_flashAnimation.value > 0)
+                Container(
+                  color: Colors.white.withOpacity(_flashAnimation.value * 0.8),
+                ),
+            ],
           ),
-        ),
-
-        // Fire & Ash Particles
-        Positioned.fill(
-          child: CustomPaint(
-            painter: _FireParticlePainter(_particles),
-          ),
-        ),
-
-        // Overlay intense fire effect at the burning line
-        Center(
-          child: AnimatedBuilder(
-              animation: _animation,
-              builder: (context, child) {
-                final burnProgress = _animation.value;
-                if (burnProgress <= 0.05 || burnProgress >= 0.95)
-                  return const SizedBox.shrink();
-
-                // Calculate approximate Y position of the burning line relative to center
-                // This is a rough estimation; for precise positioning, we'd need RenderBox
-                // 200 is roughly half the paper height
-                final double yOffset = 200 - (400 * burnProgress);
-
-                return Transform.translate(
-                  offset: Offset(0, yOffset),
-                  child: Container(
-                    width: 320,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      gradient: RadialGradient(
-                        colors: [
-                          Colors.orange.withOpacity(0.8),
-                          Colors.red.withOpacity(0.5),
-                          Colors.transparent,
-                        ],
-                        stops: const [0.2, 0.5, 1.0],
-                        radius: 2.0,
-                      ),
-                    ),
-                    child: const SizedBox(),
-                  ),
-                );
-              }),
-        )
-      ],
+        );
+      },
     );
   }
 }
 
-class _FireParticle {
+class _ExplosionParticle {
   late double x;
   late double y;
   late double size;
-  late double speedY;
-  late double speedX;
-  late double life; // 1.0 to 0.0
+  late double velocityX;
+  late double velocityY;
+  late double life;
   late Color color;
   final Random _random = Random();
 
-  _FireParticle() {
-    // Spawn particles from bottom area mostly
-    x = _random.nextDouble() * 400 -
-        200; // Spread horizontally relative to center
-    y = _random.nextDouble() * 100 +
-        150; // Start near bottom relative to center
-    size = _random.nextDouble() * 30 + 10;
-    speedY = _random.nextDouble() * 5 + 2; // Rise up
-    speedX = (_random.nextDouble() - 0.5) * 2; // Slight drift
-    life = 1.0;
+  _ExplosionParticle({bool isContinuous = false}) {
+    // 중앙에서 폭발
+    x = 0;
+    y = 0;
 
-    // Randomize colors: Orange, Red, Yellow, Dark Grey (Ash)
-    int colorType = _random.nextInt(10);
-    if (colorType < 2) {
-      color = Colors.grey.withOpacity(0.6); // Ash
-    } else if (colorType < 5) {
-      color = Colors.redAccent;
-    } else if (colorType < 8) {
-      color = Colors.orange;
+    if (isContinuous) {
+      // 지속적으로 타오르는 불길 (아래에서 위로)
+      x = (_random.nextDouble() - 0.5) * 300; // 넓게 퍼짐
+      y = 100 + _random.nextDouble() * 100;
+      size = _random.nextDouble() * 40 + 20; // 큰 불꽃
+      velocityX = (_random.nextDouble() - 0.5) * 4;
+      velocityY = -(_random.nextDouble() * 15 + 5); // 빠르게 솟구침
+      life = 0.8;
+      color = Colors.orangeAccent;
     } else {
-      color = Colors.yellowAccent;
+      // 초기 폭발 (사방으로 튐)
+      double angle = _random.nextDouble() * 2 * pi;
+      double speed = _random.nextDouble() * 20 + 10;
+      x = cos(angle) * 20; // 약간의 초기 분산
+      y = sin(angle) * 20;
+      size = _random.nextDouble() * 30 + 10;
+      velocityX = cos(angle) * speed;
+      velocityY = sin(angle) * speed;
+      life = 1.0;
+      color = _random.nextBool() ? Colors.white : Colors.yellow; // 섬광 색상
     }
+
+    // 색상 랜덤 변형 (노랑 -> 빨강 -> 검정)
+    if (_random.nextDouble() > 0.7) color = Colors.redAccent;
+    if (_random.nextDouble() > 0.9) color = Colors.grey; // 연기
   }
 
   void update() {
-    y -= speedY;
-    x += speedX + (sin(y * 0.05) * 0.5); // Add wave motion
-    life -= 0.02;
-    size *= 0.96; // Shrink over time
-  }
+    x += velocityX;
+    y += velocityY;
 
-  bool get isDead => life <= 0;
+    // 중력 영향 (약하게)을 받지만 불꽃은 위로 솟구치려는 성질
+    velocityY += 0.5; // 약간의 중력이나 저항
+    // 불꽃은 위로 가속
+    if (color == Colors.orangeAccent || color == Colors.redAccent) {
+      velocityY -= 0.8;
+    }
+
+    life -= 0.03;
+    size *= 0.95; // 점점 사라짐
+  }
 }
 
-class _FireParticlePainter extends CustomPainter {
-  final List<_FireParticle> particles;
+class _ExplosionPainter extends CustomPainter {
+  final List<_ExplosionParticle> particles;
 
-  _FireParticlePainter(this.particles);
+  _ExplosionPainter(this.particles);
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
 
-    for (var particle in particles) {
+    for (var p in particles) {
+      if (p.life <= 0) continue;
+
       final paint = Paint()
-        ..color = particle.color.withOpacity(particle.life.clamp(0.0, 1.0))
+        ..color = p.color.withOpacity(p.life.clamp(0.0, 1.0))
         ..style = PaintingStyle.fill
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3); // Soft glow
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10); // 강한 발광 효과
 
       canvas.drawCircle(
-        Offset(center.dx + particle.x, center.dy + particle.y),
-        particle.size,
+        Offset(center.dx + p.x, center.dy + p.y),
+        p.size,
         paint,
       );
     }
   }
 
   @override
-  bool shouldRepaint(covariant _FireParticlePainter oldDelegate) => true;
+  bool shouldRepaint(covariant _ExplosionPainter oldDelegate) => true;
 }
