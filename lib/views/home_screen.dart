@@ -371,8 +371,8 @@ class _HomeScreenState extends State<HomeScreen>
                         onLongPressEnd: (_) {
                           _stopPressing();
                           if (_angerLevel >= 80) {
-                            // Trigger only if anger level is high enough
                             if (ventingVM.shareToSquare) {
+                              // Validation (optional now, but good to keep structure)
                               final error = ventingVM
                                   .validateContent(_textController.text);
                               if (error != null) {
@@ -382,8 +382,75 @@ class _HomeScreenState extends State<HomeScreen>
                                         backgroundColor: Colors.red));
                                 return;
                               }
+
+                              // Show Warning Dialog
+                              showDialog(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  backgroundColor: const Color(0xFF1E1E1E),
+                                  title: const Row(
+                                    children: [
+                                      Icon(Icons.warning_amber_rounded,
+                                          color: Colors.amber),
+                                      SizedBox(width: 8),
+                                      Text('잠깐만요!',
+                                          style:
+                                              TextStyle(color: Colors.white)),
+                                    ],
+                                  ),
+                                  content: const Text(
+                                    '모두가 보는 공간에 마음이 표현됩니다.\n개인이 특정되는 정보의 노출 위험이 없는지 다시 한번 확인해 주세요.',
+                                    style: TextStyle(color: Colors.white70),
+                                  ),
+                                  actions: [
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        ElevatedButton(
+                                          onPressed: () {
+                                            Navigator.pop(
+                                                context); // Close dialog
+                                            _burnEmotions(_textController.text);
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                const Color(0xFFFF4D00),
+                                            foregroundColor: Colors.white,
+                                          ),
+                                          child: const Text('네, 이해했습니다'),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        TextButton(
+                                          onPressed: () {
+                                            Navigator.pop(
+                                                context); // Close dialog
+                                            // Switch to private and burn
+                                            ventingVM.setShareToSquare(false);
+                                            _burnEmotions(_textController.text);
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              const SnackBar(
+                                                  content:
+                                                      Text('나만 보는 공간에 남깁니다.')),
+                                            );
+                                          },
+                                          child: const Text(
+                                            '아니요. 나만의 마음으로 남길래요.',
+                                            style: TextStyle(
+                                                color: Colors.grey,
+                                                fontSize: 12),
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  ],
+                                ),
+                              );
+                            } else {
+                              // Just burn if private
+                              _burnEmotions(_textController.text);
                             }
-                            _burnEmotions(_textController.text);
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
