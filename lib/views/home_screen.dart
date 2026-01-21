@@ -10,6 +10,7 @@ import '../viewmodels/venting_viewmodel.dart';
 import '../widgets/burning_animation.dart';
 import '../widgets/doodle_view.dart';
 import '../widgets/point_display.dart';
+import '../widgets/anger_memo_field.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -277,32 +278,26 @@ class _HomeScreenState extends State<HomeScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Input Area
-                Container(
-                  height: 300, // Increased height for input area
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E1E1E),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: _isPressing
-                          ? Colors.red.withOpacity(_angerLevel / 100)
-                          : Colors.transparent,
-                      width: 2,
-                    ),
-                  ),
-                  child: ventingVM.currentMode == VentingMode.text
-                      ? TextField(
-                          controller: _textController,
-                          maxLines: null,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: const InputDecoration(
-                            hintText: '지금 무슨 일이 있었나요? 속 시원하게 털어놓으세요...',
-                            border: InputBorder.none,
-                            hintStyle: TextStyle(color: Colors.grey),
+                ventingVM.currentMode == VentingMode.text
+                    ? AngerMemoField(
+                        controller: _textController,
+                        hintText: '지금 무슨 일이 있었나요? 속 시원하게 털어놓으세요...',
+                      )
+                    : Container(
+                        height: 300,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E1E1E),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: _isPressing
+                                ? Colors.red.withOpacity(_angerLevel / 100)
+                                : Colors.transparent,
+                            width: 2,
                           ),
-                        )
-                      : DoodleView(controller: _signatureController),
-                ),
+                        ),
+                        child: DoodleView(controller: _signatureController),
+                      ),
 
                 const SizedBox(height: 16),
 

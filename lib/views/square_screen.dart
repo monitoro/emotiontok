@@ -7,6 +7,7 @@ import '../viewmodels/venting_viewmodel.dart';
 import '../viewmodels/user_viewmodel.dart';
 import 'post_detail_screen.dart';
 import '../widgets/point_display.dart';
+import 'package:vibration/vibration.dart';
 
 class SquareScreen extends StatelessWidget {
   const SquareScreen({super.key});
@@ -81,7 +82,12 @@ class SquareScreen extends StatelessWidget {
                               DateFormat('HH:mm').format(post.timestamp);
 
                           return GestureDetector(
-                            onTap: () {
+                            onTap: () async {
+                              if (userVM.isVibrationOn &&
+                                  await Vibration.hasVibrator() == true) {
+                                Vibration.vibrate(duration: 50);
+                              }
+                              if (!context.mounted) return;
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -90,18 +96,22 @@ class SquareScreen extends StatelessWidget {
                               );
                             },
                             child: Container(
-                              margin: const EdgeInsets.only(bottom: 16),
-                              padding: const EdgeInsets.all(20),
+                              margin:
+                                  const EdgeInsets.only(bottom: 8), // 16 -> 8
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 12), // 20 -> 12
                               decoration: BoxDecoration(
                                 color: const Color(0xFF2A2A2A),
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius:
+                                    BorderRadius.circular(12), // 16 -> 12
                                 border: Border.all(
                                     color: Colors.orange.withOpacity(0.2)),
                                 boxShadow: [
                                   BoxShadow(
-                                      color: Colors.black.withOpacity(0.2),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 4)),
+                                      color: Colors.black
+                                          .withOpacity(0.1), // 그림자 연하게
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 2)),
                                 ],
                               ),
                               child: Column(
@@ -112,22 +122,18 @@ class SquareScreen extends StatelessWidget {
                                         MainAxisAlignment.spaceBetween,
                                     children: [
                                       Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
+                                        child: Row(
                                           children: [
-                                            Text(
-                                                '${post.authorNickname} • $timeStr',
+                                            Text(post.authorNickname,
+                                                style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 13,
+                                                    color: Colors.white)),
+                                            const SizedBox(width: 6),
+                                            Text(timeStr,
                                                 style: const TextStyle(
                                                     color: Colors.grey,
-                                                    fontSize: 12)),
-                                            if (post.lastModified != null)
-                                              Text(
-                                                  '수정됨: ${DateFormat('HH:mm').format(post.lastModified!)}',
-                                                  style: TextStyle(
-                                                      color: Colors.orange
-                                                          .withOpacity(0.6),
-                                                      fontSize: 10)),
+                                                    fontSize: 11)),
                                           ],
                                         ),
                                       ),
@@ -135,12 +141,12 @@ class SquareScreen extends StatelessWidget {
                                         children: [
                                           Container(
                                             padding: const EdgeInsets.symmetric(
-                                                horizontal: 8, vertical: 4),
+                                                horizontal: 6, vertical: 2),
                                             decoration: BoxDecoration(
                                                 color:
                                                     Colors.red.withOpacity(0.1),
                                                 borderRadius:
-                                                    BorderRadius.circular(8)),
+                                                    BorderRadius.circular(4)),
                                             child: Text(
                                                 '분노 ${post.angerLevel.toInt()}%',
                                                 style: const TextStyle(
@@ -157,7 +163,7 @@ class SquareScreen extends StatelessWidget {
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 12),
+                                  const SizedBox(height: 8),
                                   Row(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
@@ -166,8 +172,9 @@ class SquareScreen extends StatelessWidget {
                                         child: Text(
                                           post.content,
                                           style: const TextStyle(
-                                              fontSize: 15, height: 1.4),
-                                          maxLines: 3,
+                                              fontSize: 14,
+                                              height: 1.3), // 폰트, 행간 줄임
+                                          maxLines: 2, // 3 -> 2
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
@@ -177,8 +184,8 @@ class SquareScreen extends StatelessWidget {
                                           borderRadius:
                                               BorderRadius.circular(8),
                                           child: SizedBox(
-                                            width: 60,
-                                            height: 60,
+                                            width: 48, // 60 -> 48
+                                            height: 48,
                                             child: kIsWeb
                                                 ? Image.network(post.imagePath!,
                                                     fit: BoxFit.cover)
@@ -191,7 +198,7 @@ class SquareScreen extends StatelessWidget {
                                     ],
                                   ),
                                   if (post.tags.isNotEmpty) ...[
-                                    const SizedBox(height: 8),
+                                    const SizedBox(height: 6),
                                     Wrap(
                                       spacing: 6,
                                       children: post.tags
@@ -199,22 +206,28 @@ class SquareScreen extends StatelessWidget {
                                               style: TextStyle(
                                                   color: _getTagColor(tag)
                                                       .withOpacity(0.7),
-                                                  fontSize: 12,
+                                                  fontSize: 11,
                                                   fontWeight: FontWeight.bold)))
                                           .toList(),
                                     ),
                                   ],
-                                  const SizedBox(height: 16),
+                                  const SizedBox(height: 10),
                                   Row(
                                     children: [
                                       _InteractionButton(
                                         icon: Icons.fireplace,
-                                        label: '장작 넣기',
+                                        label: '',
                                         count: post.supportCount,
                                         itemCount: ventingVM.firewoodCount,
                                         color: Colors.orange,
-                                        onTap: () {
+                                        onTap: () async {
+                                          if (userVM.isVibrationOn &&
+                                              await Vibration.hasVibrator() ==
+                                                  true) {
+                                            Vibration.vibrate(duration: 50);
+                                          }
                                           if (!ventingVM.addFirewood(post.id)) {
+                                            if (!context.mounted) return;
                                             ScaffoldMessenger.of(context)
                                                 .showSnackBar(
                                               const SnackBar(
@@ -224,15 +237,21 @@ class SquareScreen extends StatelessWidget {
                                           }
                                         },
                                       ),
-                                      const SizedBox(width: 12),
+                                      const SizedBox(width: 8),
                                       _InteractionButton(
                                         icon: Icons.water_drop,
-                                        label: '물 뿌리기',
+                                        label: '',
                                         count: post.comfortCount,
                                         itemCount: ventingVM.waterCount,
                                         color: Colors.blue,
-                                        onTap: () {
+                                        onTap: () async {
+                                          if (userVM.isVibrationOn &&
+                                              await Vibration.hasVibrator() ==
+                                                  true) {
+                                            Vibration.vibrate(duration: 50);
+                                          }
                                           if (!ventingVM.addWater(post.id)) {
+                                            if (!context.mounted) return;
                                             ScaffoldMessenger.of(context)
                                                 .showSnackBar(
                                               const SnackBar(
@@ -505,25 +524,33 @@ class _InteractionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Determine if label should be shown
+    final bool showLabel = label.isNotEmpty;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(
+            horizontal: 8, vertical: 4), // Reduced padding
         decoration: BoxDecoration(
           color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: color.withOpacity(0.2)),
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, size: 14, color: color),
             const SizedBox(width: 4),
-            Text('$label $count',
+            if (showLabel) ...[
+              Text(label,
+                  style: TextStyle(
+                      color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+              const SizedBox(width: 4),
+            ],
+            Text('$count',
                 style: TextStyle(
                     color: color, fontSize: 11, fontWeight: FontWeight.bold)),
-            const SizedBox(width: 4),
-            Text('($itemCount)',
-                style: TextStyle(color: color.withOpacity(0.6), fontSize: 10)),
           ],
         ),
       ),

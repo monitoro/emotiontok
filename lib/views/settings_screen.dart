@@ -63,6 +63,13 @@ class SettingsScreen extends StatelessWidget {
                 value: userVM.isSfxOn,
                 onChanged: (value) => userVM.toggleSfx(value),
               ),
+              _buildSwitchTile(
+                icon: Icons.vibration,
+                title: '진동 (Vibration)',
+                subtitle: '버튼 클릭 등의 진동 효과를 켭니다',
+                value: userVM.isVibrationOn,
+                onChanged: (value) => userVM.toggleVibration(value),
+              ),
             ],
           ),
           const Divider(color: Colors.white10),

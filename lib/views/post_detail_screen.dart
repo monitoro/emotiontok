@@ -173,39 +173,43 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
   Widget _buildCommentInput(BuildContext context, UserViewModel userVM) {
     return Container(
-      padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-          top: 16),
-      decoration: const BoxDecoration(
-          color: Color(0xFF1E1E1E),
-          border: Border(top: BorderSide(color: Colors.white12))),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _commentController,
-              decoration: const InputDecoration(
-                  hintText: '따뜻한 위로를 건네주세요...', border: InputBorder.none),
-            ),
+      color: const Color(0xFF1E1E1E),
+      child: SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          decoration: const BoxDecoration(
+            border: Border(top: BorderSide(color: Colors.white12)),
           ),
-          IconButton(
-            icon: const Icon(Icons.send, color: Color(0xFFFF4D00)),
-            onPressed: () {
-              if (_commentController.text.isNotEmpty) {
-                Provider.of<VentingViewModel>(context, listen: false)
-                    .addComment(
-                  widget.post.id,
-                  userVM.nickname ?? '익명',
-                  _commentController.text,
-                );
-                _commentController.clear();
-                FocusScope.of(context).unfocus();
-              }
-            },
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _commentController,
+                  decoration: const InputDecoration(
+                    hintText: '따뜻한 위로를 건네주세요...',
+                    border: InputBorder.none,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.send, color: Color(0xFFFF4D00)),
+                onPressed: () {
+                  if (_commentController.text.isNotEmpty) {
+                    Provider.of<VentingViewModel>(context, listen: false)
+                        .addComment(
+                      widget.post.id,
+                      userVM.nickname ?? '익명',
+                      _commentController.text,
+                    );
+                    _commentController.clear();
+                    FocusScope.of(context).unfocus();
+                  }
+                },
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

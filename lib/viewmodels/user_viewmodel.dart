@@ -16,6 +16,7 @@ class UserViewModel with ChangeNotifier {
   bool _isLoggedIn = false;
   bool _isBgmOn = true;
   bool _isSfxOn = true;
+  bool _isVibrationOn = true;
 
   String? get nickname => _nickname;
   Persona get selectedPersona => _selectedPersona;
@@ -25,6 +26,7 @@ class UserViewModel with ChangeNotifier {
   int get expProgress => _totalBurnCount % 5;
   bool get isBgmOn => _isBgmOn;
   bool get isSfxOn => _isSfxOn;
+  bool get isVibrationOn => _isVibrationOn;
 
   UserViewModel() {
     _loadUserData();
@@ -37,6 +39,9 @@ class UserViewModel with ChangeNotifier {
     _totalBurnCount = prefs.getInt('total_burn_count') ?? 0;
     final personaIndex = prefs.getInt('persona_index') ?? 1;
     _selectedPersona = Persona.values[personaIndex];
+    _isBgmOn = prefs.getBool('isBgmOn') ?? true;
+    _isSfxOn = prefs.getBool('isSfxOn') ?? true;
+    _isVibrationOn = prefs.getBool('isVibrationOn') ?? true;
     _isLoggedIn = _nickname != null;
     notifyListeners();
   }
@@ -85,6 +90,13 @@ class UserViewModel with ChangeNotifier {
     _isSfxOn = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('isSfxOn', value);
+    notifyListeners();
+  }
+
+  Future<void> toggleVibration(bool value) async {
+    _isVibrationOn = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isVibrationOn', value);
     notifyListeners();
   }
 }
