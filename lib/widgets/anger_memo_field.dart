@@ -1,5 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../viewmodels/user_viewmodel.dart';
+import '../utils/app_fonts.dart';
 
 class AngerMemoField extends StatefulWidget {
   final TextEditingController controller;
@@ -16,6 +19,7 @@ class AngerMemoField extends StatefulWidget {
 }
 
 class _AngerMemoFieldState extends State<AngerMemoField> {
+  // ... existing state variables ...
   double _angerIntensity = 0.0;
   Timer? _decayTimer;
   DateTime? _lastTypingTime;
@@ -39,9 +43,6 @@ class _AngerMemoFieldState extends State<AngerMemoField> {
         });
       }
     });
-
-    // Add listener to controller to detect backspaces or long presses if needed,
-    // but onChanged in TextField is usually sufficient for typing speed.
   }
 
   @override
@@ -51,11 +52,10 @@ class _AngerMemoFieldState extends State<AngerMemoField> {
   }
 
   void _onTextChanged(String text) {
+    // ... existing _onTextChanged logic ...
     final now = DateTime.now();
     if (_lastTypingTime != null) {
       final difference = now.difference(_lastTypingTime!).inMilliseconds;
-      // Faster typing (less ms between keys) = higher intensity increment
-      // Normal typing is around 100-300ms. Fast is <150ms.
       if (difference < 100) {
         _angerIntensity += 0.15; // Very fast
       } else if (difference < 250) {
@@ -72,6 +72,8 @@ class _AngerMemoFieldState extends State<AngerMemoField> {
 
   @override
   Widget build(BuildContext context) {
+    final userVM = Provider.of<UserViewModel>(context);
+
     // Interpolate colors based on anger intensity
     final currentColor = Color.lerp(_baseColor, _angryColor, _angerIntensity)!;
     final currentLineColor =
@@ -134,12 +136,13 @@ class _AngerMemoFieldState extends State<AngerMemoField> {
                 controller: widget.controller,
                 onChanged: _onTextChanged,
                 maxLines: null,
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: 18,
-                  height: 1.5, // Matches line height roughly
-                  fontFamily:
-                      'Courier', // Typewriter feel or use handwritten font if available
+                style: AppFonts.getFont(
+                  userVM.selectedFont,
+                  textStyle: TextStyle(
+                    color: textColor,
+                    fontSize: 20, // Slightly larger for handwriting
+                    height: 1.5,
+                  ),
                 ),
                 cursorColor:
                     _angerIntensity > 0.5 ? Colors.white : Colors.black,

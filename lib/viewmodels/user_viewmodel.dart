@@ -17,6 +17,7 @@ class UserViewModel with ChangeNotifier {
   bool _isBgmOn = true;
   bool _isSfxOn = true;
   bool _isVibrationOn = true;
+  String _selectedFont = '나눔 펜 (손글씨)'; // Default font
 
   String? get nickname => _nickname;
   Persona get selectedPersona => _selectedPersona;
@@ -27,6 +28,7 @@ class UserViewModel with ChangeNotifier {
   bool get isBgmOn => _isBgmOn;
   bool get isSfxOn => _isSfxOn;
   bool get isVibrationOn => _isVibrationOn;
+  String get selectedFont => _selectedFont;
 
   UserViewModel() {
     _loadUserData();
@@ -42,6 +44,7 @@ class UserViewModel with ChangeNotifier {
     _isBgmOn = prefs.getBool('isBgmOn') ?? true;
     _isSfxOn = prefs.getBool('isSfxOn') ?? true;
     _isVibrationOn = prefs.getBool('isVibrationOn') ?? true;
+    _selectedFont = prefs.getString('selectedFont') ?? '나눔 펜 (손글씨)';
     _isLoggedIn = _nickname != null;
     notifyListeners();
   }
@@ -97,6 +100,13 @@ class UserViewModel with ChangeNotifier {
     _isVibrationOn = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('isVibrationOn', value);
+    notifyListeners();
+  }
+
+  Future<void> setFont(String fontName) async {
+    _selectedFont = fontName;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('selectedFont', fontName);
     notifyListeners();
   }
 }

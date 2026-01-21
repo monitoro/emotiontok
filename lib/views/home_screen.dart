@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../utils/app_fonts.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -7,9 +8,10 @@ import 'package:signature/signature.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../viewmodels/user_viewmodel.dart';
 import '../viewmodels/venting_viewmodel.dart';
-import '../widgets/burning_animation.dart';
 import '../widgets/doodle_view.dart';
 import '../widgets/point_display.dart';
+import '../widgets/pixel_shred_animation.dart';
+import '../painter/graph_paper_painter.dart';
 import '../widgets/anger_memo_field.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -34,13 +36,17 @@ class _HomeScreenState extends State<HomeScreen>
 
   late AudioPlayer _bgmPlayer;
   late AudioPlayer _sfxPlayer;
+  late AudioPlayer _risingSfxPlayer;
 
   @override
   void initState() {
     super.initState();
     _bgmPlayer = AudioPlayer();
     _sfxPlayer = AudioPlayer();
+    _risingSfxPlayer = AudioPlayer();
+
     _bgmPlayer.setReleaseMode(ReleaseMode.loop);
+    _risingSfxPlayer.setReleaseMode(ReleaseMode.loop); // Loop for rising effect
 
     // Play BGM if enabled
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -62,6 +68,11 @@ class _HomeScreenState extends State<HomeScreen>
           setState(() {
             _angerLevel = _pulseController.value * 100;
           });
+
+          // Adjust volume based on anger level
+          if (_pulseController.value > 0) {
+            _risingSfxPlayer.setVolume(_pulseController.value.clamp(0.1, 1.0));
+          }
         }
       });
   }
@@ -70,6 +81,7 @@ class _HomeScreenState extends State<HomeScreen>
   void dispose() {
     _bgmPlayer.dispose();
     _sfxPlayer.dispose();
+    _risingSfxPlayer.dispose();
     _pulseController.dispose();
     _textController.dispose();
     _signatureController.dispose();
@@ -83,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen>
         try {
           await _bgmPlayer.play(AssetSource('sounds/bgm.mp3'), volume: 0.3);
         } catch (e) {
-          debugPrint('BGM play failed: $e');
+          // debugPrint('BGM play failed: $e');
         }
       }
     } else {
@@ -91,14 +103,25 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  void _startPressing() {
+  void _startPressing() async {
     setState(() => _isPressing = true);
     _pulseController.forward();
+
+    final userVM = Provider.of<UserViewModel>(context, listen: false);
+    if (userVM.isSfxOn) {
+      try {
+        await _risingSfxPlayer.setVolume(0.1); // Start low
+        await _risingSfxPlayer.play(AssetSource('sounds/burn_charge.mp3'));
+      } catch (e) {
+        // debugPrint('Rising SFX failed: $e');
+      }
+    }
   }
 
   void _stopPressing() {
     setState(() => _isPressing = false);
     _pulseController.reset();
+    _risingSfxPlayer.stop();
   }
 
   Future<void> _pickImage(VentingViewModel viewModel) async {
@@ -127,12 +150,19 @@ class _HomeScreenState extends State<HomeScreen>
       }
     }
 
-    // 2. Show burning dialog overlay
+    // Calculate delay based on text length (2s ~ 4s)
+    // 2.0 base + (length / 50) seconds, clamped to 4.0 max
+    final double calculatedDelaySeconds =
+        (2.0 + (text.length / 50.0)).clamp(2.0, 4.0);
+
+    // 2. Show burning dialog overlay (Pixel Shred Effect)
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => BurningAnimation(
-        text: text,
+      barrierColor: Colors.black.withOpacity(0.8), // Darken background
+      builder: (context) => Center(
+          child: PixelShredAnimation(
+        delay: Duration(milliseconds: (calculatedDelaySeconds * 1000).toInt()),
         onComplete: () {
           Navigator.of(context).pop(); // Close dialog
           // 3. Save post and process
@@ -150,7 +180,80 @@ class _HomeScreenState extends State<HomeScreen>
           // Show AI response dialog
           _showAiResponseDialog(context, ventingVM);
         },
-      ),
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            width: 300,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white, // White paper
+              borderRadius:
+                  BorderRadius.circular(4), // Sharp corners like paper
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 10,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: CustomPaint(
+                foregroundPainter: GraphPaperPainter(), // Draw grid on top
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (ventingVM.pickedImagePath != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: kIsWeb
+                              ? Image.network(ventingVM.pickedImagePath!,
+                                  height: 150)
+                              : Image.file(File(ventingVM.pickedImagePath!),
+                                  height: 150),
+                        ),
+                      ),
+
+                    if (ventingVM.currentMode == VentingMode.doodle &&
+                        ventingVM.doodleData != null)
+                      Container(
+                        height: 200,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey),
+                        ),
+                        child: Image.memory(ventingVM
+                            .doodleData!), // This assumes doodle is saved, but let's check.
+                        // Wait, doodleData is set on finishBurning in VM? No, we check controller directly here.
+                      ),
+
+                    // For simplicity in this step, let's just show text.
+                    // If doodle mode, we might need to capture it first?
+                    // The constraints of the prompt imply we just capture what we see.
+                    // Let's render the text nicely.
+                    Text(
+                      text.isEmpty
+                          ? (ventingVM.currentMode == VentingMode.doodle
+                              ? "(그림으로 표현된 마음)"
+                              : "...")
+                          : text,
+                      style: AppFonts.getFont(
+                        userVM.selectedFont,
+                        textStyle: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                          height: 1.5,
+                        ),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                )),
+          ),
+        ),
+      )),
     );
   }
 

@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../viewmodels/venting_viewmodel.dart';
 import '../widgets/point_display.dart';
+import '../viewmodels/user_viewmodel.dart';
+import '../utils/app_fonts.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
@@ -13,11 +15,25 @@ class LibraryScreen extends StatefulWidget {
 }
 
 class _LibraryScreenState extends State<LibraryScreen> {
-  CalendarFormat _calendarFormat = CalendarFormat.month;
+  CalendarFormat _calendarFormat = CalendarFormat.week;
+  int? _expandedIndex;
+  DateTime? _lastSelectedDate;
 
   @override
   Widget build(BuildContext context) {
     final ventingVM = Provider.of<VentingViewModel>(context);
+
+    // Auto-expand last item when date changes or initially
+    if (_lastSelectedDate == null ||
+        !isSameDay(_lastSelectedDate, ventingVM.selectedCalendarDate)) {
+      _lastSelectedDate = ventingVM.selectedCalendarDate;
+      final posts = ventingVM.myPostsForSelectedDate;
+      if (posts.isNotEmpty) {
+        _expandedIndex = posts.length - 1;
+      } else {
+        _expandedIndex = null;
+      }
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -58,6 +74,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
             isSameDay(ventingVM.selectedCalendarDate, day),
         onDaySelected: (selectedDay, focusedDay) {
           ventingVM.setSelectedCalendarDate(selectedDay);
+          setState(() {
+            _expandedIndex = null; // Will be reset in build
+          });
         },
         onFormatChanged: (format) {
           setState(() {
@@ -159,85 +178,128 @@ class _LibraryScreenState extends State<LibraryScreen> {
       itemCount: posts.length,
       itemBuilder: (context, index) {
         final post = posts[index];
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFF2A2A2A),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withOpacity(0.05)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    DateFormat('HH:mm').format(post.timestamp),
-                    style: const TextStyle(
-                        color: Color(0xFFFF4D00),
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold),
-                  ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      '분노 ${post.angerLevel.toInt()}%',
-                      style: const TextStyle(color: Colors.red, fontSize: 10),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              if (post.tags.isNotEmpty) ...[
-                Wrap(
-                  spacing: 6,
-                  children: post.tags
-                      .map((tag) => Text('#$tag',
-                          style: TextStyle(
-                              color: _getTagColor(tag).withOpacity(0.7),
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold)))
-                      .toList(),
-                ),
-                const SizedBox(height: 4),
-              ],
-              Text(
-                post.content,
-                style: const TextStyle(fontSize: 15, height: 1.5),
-              ),
-              if (post.aiResponse != null) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.03),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
+        final isExpanded = index == _expandedIndex;
+
+        return GestureDetector(
+          onTap: () {
+            setState(() {
+              _expandedIndex = isExpanded ? null : index;
+            });
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2A2A2A),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                  color: isExpanded
+                      ? const Color(0xFFFF4D00).withOpacity(0.5)
+                      : Colors.white.withOpacity(0.05)),
+            ),
+            child: isExpanded
+                ? Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.auto_awesome,
-                          size: 14, color: Color(0xFFFF4D00)),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          post.aiResponse!,
-                          style: const TextStyle(
-                              fontSize: 13, color: Colors.grey, height: 1.4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            DateFormat('HH:mm').format(post.timestamp),
+                            style: const TextStyle(
+                                color: Color(0xFFFF4D00),
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              '분노 ${post.angerLevel.toInt()}%',
+                              style: const TextStyle(
+                                  color: Colors.red, fontSize: 10),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (post.tags.isNotEmpty) ...[
+                        Wrap(
+                          spacing: 6,
+                          children: post.tags
+                              .map((tag) => Text('#$tag',
+                                  style: TextStyle(
+                                      color: _getTagColor(tag).withOpacity(0.7),
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold)))
+                              .toList(),
+                        ),
+                        const SizedBox(height: 4),
+                      ],
+                      Text(
+                        post.content,
+                        style: AppFonts.getFont(
+                          Provider.of<UserViewModel>(context).selectedFont,
+                          textStyle: const TextStyle(fontSize: 15, height: 1.5),
                         ),
                       ),
+                      if (post.aiResponse != null) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.03),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.auto_awesome,
+                                  size: 14, color: Color(0xFFFF4D00)),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  post.aiResponse!,
+                                  style: const TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey,
+                                      height: 1.4),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Text(
+                        DateFormat('HH:mm').format(post.timestamp),
+                        style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          post.content.replaceAll('\n', ' '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                      ),
+                      const Icon(Icons.keyboard_arrow_down,
+                          color: Colors.grey, size: 16),
                     ],
                   ),
-                ),
-              ],
-            ],
           ),
         );
       },

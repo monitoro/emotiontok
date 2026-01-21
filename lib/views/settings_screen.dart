@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/user_viewmodel.dart';
+import '../viewmodels/venting_viewmodel.dart';
+import '../utils/app_fonts.dart';
+import '../services/data_export_service.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -30,6 +33,18 @@ class SettingsScreen extends StatelessWidget {
                 title: 'AI 페르소나',
                 subtitle: _getPersonaName(userVM.selectedPersona),
                 onTap: () => _showPersonaDialog(context, userVM),
+              ),
+            ],
+          ),
+          const Divider(color: Colors.white10),
+          _buildSection(
+            title: '화면',
+            children: [
+              _buildSettingTile(
+                icon: Icons.font_download,
+                title: '폰트 설정',
+                subtitle: userVM.selectedFont,
+                onTap: () => _showFontDialog(context, userVM),
               ),
             ],
           ),
@@ -96,10 +111,49 @@ class SettingsScreen extends StatelessWidget {
               ),
             ],
           ),
+          // ... (Sound section and App Info section remain roughly the same, skipped for brevity in replacement if not modifying, but I need to be careful with context)
+          // Actually, I should just modify the sections I need. But I need to insert Data Backup before Data Reset.
+
           const Divider(color: Colors.white10),
           _buildSection(
             title: '데이터',
             children: [
+              _buildSettingTile(
+                icon: Icons.download,
+                title: 'CSV로 내보내기 (백업)',
+                subtitle: '감정 기록을 파일로 저장합니다',
+                onTap: () async {
+                  debugPrint('CSV Export tapped');
+                  try {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('백업 파일을 생성 중입니다...')),
+                    );
+
+                    final ventingVM =
+                        Provider.of<VentingViewModel>(context, listen: false);
+                    final exportService = DataExportService();
+                    debugPrint('Posts count: ${ventingVM.myHistory.length}');
+
+                    if (ventingVM.myHistory.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('백업할 데이터가 없습니다.')),
+                      );
+                      return;
+                    }
+
+                    await exportService.exportData(ventingVM.myHistory);
+
+                    // SharePlus itself doesn't return a "success" boolean easily for the UI flow,
+                    // but if we get here, the share sheet should have opened.
+                    debugPrint('Export service call completed');
+                  } catch (e) {
+                    debugPrint('Export failed: $e');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('백업 실패: $e')),
+                    );
+                  }
+                },
+              ),
               _buildSettingTile(
                 icon: Icons.delete_forever,
                 title: '모든 데이터 초기화',
@@ -108,6 +162,52 @@ class SettingsScreen extends StatelessWidget {
                 textColor: Colors.red,
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showFontDialog(BuildContext context, UserViewModel userVM) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        title: const Text('서체 선택'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: AppFonts.fontList.map((fontName) {
+              return RadioListTile<String>(
+                value: fontName,
+                groupValue: userVM.selectedFont,
+                title: Text(
+                  '감정을 태워보세요',
+                  style: AppFonts.getFont(fontName,
+                      textStyle:
+                          const TextStyle(fontSize: 18, color: Colors.white)),
+                ),
+                subtitle: Text(fontName,
+                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                activeColor: const Color(0xFFFF4D00),
+                onChanged: (value) {
+                  if (value != null) {
+                    userVM.setFont(value);
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('$value 서체로 변경되었습니다')),
+                    );
+                  }
+                },
+              );
+            }).toList(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('닫기', style: TextStyle(color: Colors.grey)),
           ),
         ],
       ),
