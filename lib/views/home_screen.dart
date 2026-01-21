@@ -268,7 +268,7 @@ class _HomeScreenState extends State<HomeScreen>
             children: [
               Icon(Icons.auto_awesome, color: Color(0xFFFF4D00)),
               SizedBox(width: 8),
-              Text('AI의 위로', style: TextStyle(color: Colors.white)),
+              Text('마음이의 위로', style: TextStyle(color: Colors.white)),
             ],
           ),
           content: Consumer<VentingViewModel>(

@@ -48,3 +48,4 @@ app.*.map.json
 /android/build/
 /android/.gradle/
 .flutter-plugins
+lib/config/api_config.dart
