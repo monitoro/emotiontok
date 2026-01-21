@@ -280,15 +280,7 @@ class VentingViewModel with ChangeNotifier {
   }
 
   String? validateContent(String text) {
-    final List<String> badWords = ['바보', '멍청이', 'ㅅㅂ', 'ㄴㅁ'];
-    final piiRegex = RegExp(r'\d{3}-\d{4}-\d{4}|[가-힣]{2,4}\s?(선생님|팀장|부장|교수)');
-
-    for (var word in badWords) {
-      if (text.contains(word)) return '욕설이 포함되어 있어 광장에 공유할 수 없습니다.';
-    }
-    if (piiRegex.hasMatch(text))
-      return '개인정보나 특정인을 지칭하는 정보가 포함되어 있어 공유가 불가합니다.';
-
+    // 욕설 필터링 제거: 시원하게 욕해도 되는 컨셉
     return null;
   }
 

@@ -354,68 +354,71 @@ class _HomeScreenState extends State<HomeScreen>
                 const SizedBox(height: 40),
 
                 // Burn Button (Keep Pressing Interaction)
+                // Burn Button (Keep Pressing Interaction)
                 Center(
-                  child: GestureDetector(
-                    onLongPressStart: (_) => _startPressing(),
-                    onLongPressEnd: (_) {
-                      _stopPressing();
-                      if (_angerLevel >= 80) {
-                        // Trigger only if anger level is high enough
-                        if (ventingVM.shareToSquare) {
-                          final error =
-                              ventingVM.validateContent(_textController.text);
-                          if (error != null) {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                content: Text(error),
-                                backgroundColor: Colors.red));
-                            return;
-                          }
-                        }
-                        _burnEmotions(_textController.text);
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('감정을 더 모아서 꾹 눌러주세요! (80% 이상)')),
-                        );
-                      }
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 100),
-                      width: 120 + (_angerLevel * 0.5),
-                      height: 120 + (_angerLevel * 0.5),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            const Color(0xFFFF4D00).withOpacity(0.8),
-                            const Color(0xFFFF4D00).withOpacity(0.2),
-                          ],
-                          stops: const [0.5, 1.0],
+                  child: Column(
+                    children: [
+                      Text(
+                        '꾹 눌러서 태워버리기 ${(_angerLevel).toInt()}%',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.7),
+                          fontWeight: FontWeight.bold,
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFFF4D00).withOpacity(0.5),
-                            blurRadius: 20 + _angerLevel,
-                            spreadRadius: _angerLevel * 0.2,
+                      ),
+                      const SizedBox(height: 20),
+                      GestureDetector(
+                        onLongPressStart: (_) => _startPressing(),
+                        onLongPressEnd: (_) {
+                          _stopPressing();
+                          if (_angerLevel >= 80) {
+                            // Trigger only if anger level is high enough
+                            if (ventingVM.shareToSquare) {
+                              final error = ventingVM
+                                  .validateContent(_textController.text);
+                              if (error != null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                        content: Text(error),
+                                        backgroundColor: Colors.red));
+                                return;
+                              }
+                            }
+                            _burnEmotions(_textController.text);
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text('감정을 더 모아서 꾹 눌러주세요! (80% 이상)')),
+                            );
+                          }
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 100),
+                          width: 120 + (_angerLevel * 0.5),
+                          height: 120 + (_angerLevel * 0.5),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(
+                              colors: [
+                                const Color(0xFFFF4D00).withOpacity(0.8),
+                                const Color(0xFFFF4D00).withOpacity(0.2),
+                              ],
+                              stops: const [0.5, 1.0],
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFFF4D00).withOpacity(0.5),
+                                blurRadius: 20 + _angerLevel,
+                                spreadRadius: _angerLevel * 0.2,
+                              ),
+                            ],
                           ),
-                        ],
+                          child: const Center(
+                            child: Icon(Icons.local_fire_department,
+                                size: 48, color: Colors.white),
+                          ),
+                        ),
                       ),
-                      child: const Center(
-                        child: Icon(Icons.local_fire_department,
-                            size: 48, color: Colors.white),
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-                Center(
-                  child: Text(
-                    '꾹 눌러서 태워버리기 ${(_angerLevel).toInt()}%',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.7),
-                      fontWeight: FontWeight.bold,
-                    ),
+                    ],
                   ),
                 ),
               ],
