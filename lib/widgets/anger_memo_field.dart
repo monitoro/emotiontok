@@ -6,11 +6,13 @@ import '../utils/app_fonts.dart';
 
 class AngerMemoField extends StatefulWidget {
   final TextEditingController controller;
+  final FocusNode focusNode; // Accept external focus node
   final String hintText;
 
   const AngerMemoField({
     super.key,
     required this.controller,
+    required this.focusNode, // Required parameter
     required this.hintText,
   });
 
@@ -45,12 +47,12 @@ class _AngerMemoFieldState extends State<AngerMemoField> {
     });
   }
 
-  final FocusNode _focusNode = FocusNode();
+  // Removed internal _focusNode - now using widget.focusNode from parent
 
   @override
   void dispose() {
     _decayTimer?.cancel();
-    _focusNode.dispose();
+    // No need to dispose focusNode - it's managed by parent
     super.dispose();
   }
 
@@ -136,7 +138,8 @@ class _AngerMemoFieldState extends State<AngerMemoField> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
               child: TextField(
-                focusNode: _focusNode,
+                focusNode:
+                    widget.focusNode, // Use external focus node from parent
                 controller: widget.controller,
                 onChanged: _onTextChanged,
                 autofocus: false, // Prevent auto-focus

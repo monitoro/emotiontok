@@ -8,7 +8,12 @@ import 'views/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(); // Initialize Firebase
+  try {
+    await Firebase.initializeApp(); // Initialize Firebase
+  } catch (e) {
+    debugPrint('Firebase initialization failed: $e');
+    // Firebase 설정이 없어도 앱이 실행될 수 있도록 계속 진행합니다.
+  }
 
   runApp(
     MultiProvider(

@@ -25,6 +25,8 @@ class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   double _angerLevel = 0.0;
   final TextEditingController _textController = TextEditingController();
+  final FocusNode _textFocusNode =
+      FocusNode(); // Add focus node to control keyboard
   final ImagePicker _picker = ImagePicker();
   bool _isPressing = false;
   late AnimationController _pulseController;
@@ -68,6 +70,7 @@ class _HomeScreenState extends State<HomeScreen>
     _risingSfxPlayer.dispose();
     _pulseController.dispose();
     _textController.dispose();
+    _textFocusNode.dispose(); // Dispose focus node
     _signatureController.dispose();
     super.dispose();
   }
@@ -128,6 +131,7 @@ class _HomeScreenState extends State<HomeScreen>
         (2.0 + (text.length / 50.0)).clamp(2.0, 4.0);
 
     // Remove focus BEFORE showing dialog to prevent auto-restoration
+    _textFocusNode.unfocus(); // Explicitly unfocus the text field
     FocusScope.of(context).unfocus();
 
     // 2. Show burning dialog overlay (Pixel Shred Effect)
@@ -143,6 +147,7 @@ class _HomeScreenState extends State<HomeScreen>
           // Delay unfocus to override any focus restoration
           await Future.delayed(const Duration(milliseconds: 150));
           if (context.mounted) {
+            _textFocusNode.unfocus(); // Explicitly unfocus the text field
             FocusScope.of(context).unfocus();
           }
 
@@ -312,6 +317,8 @@ class _HomeScreenState extends State<HomeScreen>
                   // Delay unfocus to override any focus restoration (150ms is enough)
                   await Future.delayed(const Duration(milliseconds: 150));
                   if (context.mounted) {
+                    _textFocusNode
+                        .unfocus(); // Explicitly unfocus the text field
                     FocusScope.of(context).unfocus();
                   }
 
@@ -336,6 +343,8 @@ class _HomeScreenState extends State<HomeScreen>
                   // Delay unfocus to override any focus restoration
                   await Future.delayed(const Duration(milliseconds: 150));
                   if (context.mounted) {
+                    _textFocusNode
+                        .unfocus(); // Explicitly unfocus the text field
                     FocusScope.of(context).unfocus();
                   }
 
@@ -447,6 +456,8 @@ class _HomeScreenState extends State<HomeScreen>
                 ventingVM.currentMode == VentingMode.text
                     ? AngerMemoField(
                         controller: _textController,
+                        focusNode:
+                            _textFocusNode, // Pass focus node for complete control
                         hintText: '지금 무슨 일이 있었나요? 속 시원하게 털어놓으세요...',
                       )
                     : Container(

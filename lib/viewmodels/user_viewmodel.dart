@@ -129,7 +129,10 @@ class UserViewModel with ChangeNotifier {
 
       final bool didAuthenticate = await auth.authenticate(
         localizedReason: '앱에 로그인하려면 인증해주세요.',
-        biometricOnly: true,
+        options: const AuthenticationOptions(
+          biometricOnly: true,
+          stickyAuth: true,
+        ),
       );
       return didAuthenticate;
     } catch (e) {
