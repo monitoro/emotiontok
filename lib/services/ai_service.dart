@@ -6,7 +6,7 @@ class AIService {
   static Future<String> getResponse(Persona persona, String userText) async {
     try {
       final model = GenerativeModel(
-        model: 'gemini-pro',
+        model: 'gemini-2.5-flash',
         apiKey: ApiConfig.geminiApiKey,
       );
 
