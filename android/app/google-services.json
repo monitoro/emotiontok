@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1045310158523",
+    "project_id": "emotiontok-b232f",
+    "storage_bucket": "emotiontok-b232f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1045310158523:android:dc1cd912e5e03284be1b9e",
+        "android_client_info": {
+          "package_name": "com.silverpixelism.emotiontok"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBkqRitNzmnsbu4CEjTtwOQbSE6RaXm7pY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

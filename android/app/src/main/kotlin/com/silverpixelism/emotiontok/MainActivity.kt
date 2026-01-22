@@ -1,4 +1,4 @@
-package com.example.emotiontok
+package com.silverpixelism.emotiontok
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 

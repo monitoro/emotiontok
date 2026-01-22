@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../services/ai_service.dart';
 import '../viewmodels/user_viewmodel.dart';
 
@@ -172,6 +174,9 @@ enum SquareSortType { latest, firewood, water, comments }
 enum SquareFilterPeriod { all, day, week, month }
 
 class VentingViewModel with ChangeNotifier {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
   VentingMode _currentMode = VentingMode.text;
   bool _isBurning = false;
   String? _lastAiResponse;
@@ -187,30 +192,41 @@ class VentingViewModel with ChangeNotifier {
   int _firewoodCount = 3;
   int _waterCount = 3;
 
-  final List<PublicPost> _publicPosts = [
-    PublicPost(
-      id: '1',
-      authorNickname: '익명불사조',
-      content: '부당한 대우를 참는 것도 한계가 있네요. 다 타버려라!',
-      angerLevel: 90,
-      timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
-      supportCount: 12,
-      tags: ['직장'],
-      comments: [
-        PublicComment(
-            nickname: '위로봇',
-            content: '정말 힘드시겠어요. 힘내세요!',
-            timestamp: DateTime.now()),
-      ],
-    ),
-  ];
+  List<PublicPost> _publicPosts = [];
 
   final List<PrivatePost> _privateHistory = [];
   DateTime _selectedCalendarDate = DateTime.now();
 
   VentingViewModel() {
     _loadPrivateHistory();
-    _loadPublicPosts();
+    // _loadPublicPosts(); // Local persistence replaced by Firestore
+    _initFirebase();
+  }
+
+  Future<void> _initFirebase() async {
+    await _signInAnonymously();
+    _subscribeToPosts();
+  }
+
+  Future<void> _signInAnonymously() async {
+    try {
+      await _auth.signInAnonymously();
+    } catch (e) {
+      if (kDebugMode) {
+        print("Firebase Auth Error: $e");
+      }
+    }
+  }
+
+  void _subscribeToPosts() {
+    _firestore.collection('posts').snapshots().listen((snapshot) {
+      _publicPosts = snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id; // Ensure ID matches Document ID
+        return PublicPost.fromMap(data);
+      }).toList();
+      notifyListeners();
+    });
   }
 
   Future<void> _loadPrivateHistory() async {
@@ -230,24 +246,6 @@ class VentingViewModel with ChangeNotifier {
     final String encoded =
         jsonEncode(_privateHistory.map((p) => p.toMap()).toList());
     await prefs.setString('private_history', encoded);
-  }
-
-  Future<void> _loadPublicPosts() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? postsJson = prefs.getString('public_posts');
-    if (postsJson != null) {
-      final List<dynamic> decoded = jsonDecode(postsJson);
-      _publicPosts.clear();
-      _publicPosts.addAll(decoded.map((e) => PublicPost.fromMap(e)).toList());
-      notifyListeners();
-    }
-  }
-
-  Future<void> _savePublicPosts() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String encoded =
-        jsonEncode(_publicPosts.map((p) => p.toMap()).toList());
-    await prefs.setString('public_posts', encoded);
   }
 
   VentingMode get currentMode => _currentMode;
@@ -382,43 +380,49 @@ class VentingViewModel with ChangeNotifier {
     notifyListeners();
   }
 
-  bool addFirewood(String postId) {
+  Future<bool> addFirewood(String postId) async {
     if (_firewoodCount <= 0) return false;
-    final index = _publicPosts.indexWhere((p) => p.id == postId);
-    if (index != -1) {
-      _publicPosts[index].supportCount++;
+    try {
+      await _firestore.collection('posts').doc(postId).update({
+        'supportCount': FieldValue.increment(1),
+      });
       _firewoodCount--;
-      _savePublicPosts();
       notifyListeners();
       return true;
+    } catch (e) {
+      print("Error adding firewood: $e");
+      return false;
     }
-    return false;
   }
 
-  bool addWater(String postId) {
+  Future<bool> addWater(String postId) async {
     if (_waterCount <= 0) return false;
-    final index = _publicPosts.indexWhere((p) => p.id == postId);
-    if (index != -1) {
-      _publicPosts[index].comfortCount++;
+    try {
+      await _firestore.collection('posts').doc(postId).update({
+        'comfortCount': FieldValue.increment(1),
+      });
       _waterCount--;
-      _savePublicPosts();
       notifyListeners();
       return true;
+    } catch (e) {
+      print("Error adding water: $e");
+      return false;
     }
-    return false;
   }
 
-  void addComment(String postId, String nickname, String content) {
-    final index = _publicPosts.indexWhere((p) => p.id == postId);
-    if (index != -1) {
-      _publicPosts[index].comments.add(
-            PublicComment(
-                nickname: nickname,
-                content: content,
-                timestamp: DateTime.now()),
-          );
-      _savePublicPosts();
-      notifyListeners();
+  Future<void> addComment(
+      String postId, String nickname, String content) async {
+    try {
+      final comment = PublicComment(
+        nickname: nickname,
+        content: content,
+        timestamp: DateTime.now(),
+      );
+      await _firestore.collection('posts').doc(postId).update({
+        'comments': FieldValue.arrayUnion([comment.toMap()]),
+      });
+    } catch (e) {
+      print("Error adding comment: $e");
     }
   }
 
@@ -431,11 +435,14 @@ class VentingViewModel with ChangeNotifier {
       {double? angerLevel}) async {
     final extractedTags = _extractTags(text);
     final now = DateTime.now();
-    final postId = now.millisecondsSinceEpoch.toString();
+    String postId = now.millisecondsSinceEpoch.toString();
 
     PublicPost? newPublicPost;
 
     if (_shareToSquare) {
+      final docRef = _firestore.collection('posts').doc();
+      postId = docRef.id;
+
       newPublicPost = PublicPost(
         id: postId,
         authorNickname: userVM.nickname ?? '익명',
@@ -446,8 +453,7 @@ class VentingViewModel with ChangeNotifier {
         tags: extractedTags,
         fontName: userVM.selectedFont,
       );
-      _publicPosts.insert(0, newPublicPost);
-      _savePublicPosts();
+      await docRef.set(newPublicPost.toMap());
     }
 
     _privateHistory.insert(
@@ -494,17 +500,20 @@ class VentingViewModel with ChangeNotifier {
     }
 
     // Add AI Response as a comment to the captured public post
-    if (newPublicPost != null && response.isNotEmpty) {
-      newPublicPost.comments.insert(
-        0,
-        PublicComment(
-          nickname: '마음이 (${_getPersonaName(persona)})',
-          content: response,
-          timestamp: DateTime.now(),
-        ),
+    if (_shareToSquare && newPublicPost != null && response.isNotEmpty) {
+      final aiComment = PublicComment(
+        nickname: '마음이 (${_getPersonaName(persona)})',
+        content: response,
+        timestamp: DateTime.now(),
       );
-      _savePublicPosts();
-      notifyListeners();
+
+      try {
+        await _firestore.collection('posts').doc(postId).update({
+          'comments': FieldValue.arrayUnion([aiComment.toMap()]),
+        });
+      } catch (e) {
+        print("Error adding AI comment: $e");
+      }
     }
     notifyListeners();
   }
@@ -545,65 +554,65 @@ class VentingViewModel with ChangeNotifier {
     return tags;
   }
 
-  void editPost(String postId, String newContent) {
-    final index = _publicPosts.indexWhere((p) => p.id == postId);
-    if (index != -1) {
-      _publicPosts[index].content = newContent;
-      _publicPosts[index].lastModified = DateTime.now();
-      _savePublicPosts();
-      notifyListeners();
+  Future<void> editPost(String postId, String newContent) async {
+    try {
+      await _firestore.collection('posts').doc(postId).update({
+        'content': newContent,
+        'lastModified': DateTime.now()
+            .toIso8601String(), // Store as string if possible or update PublicPost.fromMap to handle Timestamp
+      });
+      // PublicPost.fromMap handles String for lastModified based on current code: DateTime.parse(map['lastModified'])
+      // So we should save ISO String.
+    } catch (e) {
+      print("Error editing post: $e");
     }
   }
 
-  void deletePost(String postId) {
-    _publicPosts.removeWhere((p) => p.id == postId);
-    _savePublicPosts();
-    notifyListeners();
+  Future<void> deletePost(String postId) async {
+    try {
+      await _firestore.collection('posts').doc(postId).delete();
+    } catch (e) {
+      print("Error deleting post: $e");
+    }
   }
 
-  bool addFirewoodToComment(String postId, int commentIndex) {
-    if (_firewoodCount <= 0) return false;
-    final postIndex = _publicPosts.indexWhere((p) => p.id == postId);
-    if (postIndex != -1 &&
-        commentIndex < _publicPosts[postIndex].comments.length) {
-      _publicPosts[postIndex].comments[commentIndex].supportCount++;
-      _firewoodCount--;
-      _savePublicPosts();
-      notifyListeners();
-      return true;
-    }
+  // Not implemented in MVP for nested deep interactions on arrays
+  Future<bool> addFirewoodToComment(String postId, int commentIndex) async {
+    // requires reading doc, modifying array, writing back.
     return false;
   }
 
-  bool addWaterToComment(String postId, int commentIndex) {
-    if (_waterCount <= 0) return false;
-    final postIndex = _publicPosts.indexWhere((p) => p.id == postId);
-    if (postIndex != -1 &&
-        commentIndex < _publicPosts[postIndex].comments.length) {
-      _publicPosts[postIndex].comments[commentIndex].comfortCount++;
-      _waterCount--;
-      _savePublicPosts();
-      notifyListeners();
-      return true;
-    }
+  Future<bool> addWaterToComment(String postId, int commentIndex) async {
+    // requires reading doc, modifying array, writing back.
     return false;
   }
 
-  void addReply(
-      String postId, int commentIndex, String nickname, String content) {
-    final postIndex = _publicPosts.indexWhere((p) => p.id == postId);
-    if (postIndex != -1 &&
-        commentIndex < _publicPosts[postIndex].comments.length) {
-      _publicPosts[postIndex].comments[commentIndex].replies.add(
-            PublicComment(
-              nickname: nickname,
-              content: content,
-              timestamp: DateTime.now(),
-            ),
-          );
-      _savePublicPosts();
-      notifyListeners();
-    }
+  Future<void> addReply(
+      String postId, int commentIndex, String nickname, String content) async {
+    final postRef = _firestore.collection('posts').doc(postId);
+
+    return _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(postRef);
+      if (!snapshot.exists) return;
+
+      final data = snapshot.data()!;
+      // Need to parse comments properly
+      // This is a bit risky if data structure changes, but assuming strict map adherence:
+      List<dynamic> commentsData = data['comments'] ?? [];
+      if (commentIndex < commentsData.length) {
+        Map<String, dynamic> targetComment = commentsData[commentIndex];
+        List<dynamic> replies = targetComment['replies'] ?? [];
+
+        replies.add(PublicComment(
+                nickname: nickname, content: content, timestamp: DateTime.now())
+            .toMap());
+
+        targetComment['replies'] = replies;
+        commentsData[commentIndex] = targetComment;
+
+        transaction.update(postRef, {'comments': commentsData});
+      }
+    });
   }
 
   PublicPost? getPublicPost(String id) {

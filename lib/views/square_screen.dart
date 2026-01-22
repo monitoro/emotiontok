@@ -232,7 +232,8 @@ class SquareScreen extends StatelessWidget {
                                                   true) {
                                             Vibration.vibrate(duration: 50);
                                           }
-                                          if (!ventingVM.addFirewood(post.id)) {
+                                          if (!await ventingVM
+                                              .addFirewood(post.id)) {
                                             if (!context.mounted) return;
                                             ScaffoldMessenger.of(context)
                                                 .showSnackBar(
@@ -256,7 +257,8 @@ class SquareScreen extends StatelessWidget {
                                                   true) {
                                             Vibration.vibrate(duration: 50);
                                           }
-                                          if (!ventingVM.addWater(post.id)) {
+                                          if (!await ventingVM
+                                              .addWater(post.id)) {
                                             if (!context.mounted) return;
                                             ScaffoldMessenger.of(context)
                                                 .showSnackBar(
