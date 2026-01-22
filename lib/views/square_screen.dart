@@ -9,8 +9,6 @@ import 'post_detail_screen.dart';
 import '../widgets/point_display.dart';
 import 'package:vibration/vibration.dart';
 
-import '../utils/app_fonts.dart';
-
 class SquareScreen extends StatelessWidget {
   const SquareScreen({super.key});
 
@@ -89,6 +87,7 @@ class SquareScreen extends StatelessWidget {
                                   await Vibration.hasVibrator() == true) {
                                 Vibration.vibrate(duration: 50);
                               }
+                              ventingVM.markPostAsRead(post.id); // Mark as read
                               if (!context.mounted) return;
                               Navigator.push(
                                 context,
@@ -99,9 +98,10 @@ class SquareScreen extends StatelessWidget {
                             },
                             child: Container(
                               margin:
-                                  const EdgeInsets.only(bottom: 8), // 16 -> 8
+                                  const EdgeInsets.only(bottom: 6), // 8 -> 6
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 12), // 20 -> 12
+                                  horizontal: 14,
+                                  vertical: 10), // 16, 12 -> 14, 10
                               decoration: BoxDecoration(
                                 color: const Color(0xFF2A2A2A),
                                 borderRadius:
@@ -119,53 +119,7 @@ class SquareScreen extends StatelessWidget {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Expanded(
-                                        child: Row(
-                                          children: [
-                                            Text(post.authorNickname,
-                                                style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 13,
-                                                    color: Colors.white)),
-                                            const SizedBox(width: 6),
-                                            Text(timeStr,
-                                                style: const TextStyle(
-                                                    color: Colors.grey,
-                                                    fontSize: 11)),
-                                          ],
-                                        ),
-                                      ),
-                                      Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 6, vertical: 2),
-                                            decoration: BoxDecoration(
-                                                color:
-                                                    Colors.red.withOpacity(0.1),
-                                                borderRadius:
-                                                    BorderRadius.circular(4)),
-                                            child: Text(
-                                                '분노 ${post.angerLevel.toInt()}%',
-                                                style: const TextStyle(
-                                                    color: Colors.red,
-                                                    fontSize: 10,
-                                                    fontWeight:
-                                                        FontWeight.bold)),
-                                          ),
-                                          if (post.authorNickname ==
-                                              userVM.nickname)
-                                            _buildPostMenu(
-                                                context, ventingVM, post),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
+                                  // 1st Line: Content & Image
                                   Row(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
@@ -173,25 +127,25 @@ class SquareScreen extends StatelessWidget {
                                       Expanded(
                                         child: Text(
                                           post.content,
-                                          style: AppFonts.getFont(
-                                            post.fontName,
-                                            textStyle: const TextStyle(
-                                                fontSize: 14,
-                                                height: 1.3,
-                                                color: Colors.white),
-                                          ),
-                                          maxLines: 2,
+                                          style: TextStyle(
+                                              fontSize: 15,
+                                              height: 1.2,
+                                              color:
+                                                  ventingVM.isPostRead(post.id)
+                                                      ? Colors.white38
+                                                      : Colors.white),
+                                          maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
                                       if (post.imagePath != null) ...[
-                                        const SizedBox(width: 12),
+                                        const SizedBox(width: 8),
                                         ClipRRect(
                                           borderRadius:
-                                              BorderRadius.circular(8),
+                                              BorderRadius.circular(4),
                                           child: SizedBox(
-                                            width: 48, // 60 -> 48
-                                            height: 48,
+                                            width: 32, // Smaller thumbnail
+                                            height: 32,
                                             child: kIsWeb
                                                 ? Image.network(post.imagePath!,
                                                     fit: BoxFit.cover)
@@ -201,30 +155,106 @@ class SquareScreen extends StatelessWidget {
                                           ),
                                         ),
                                       ],
+                                      // Edit/Delete Buttons (Moved to Right Top) -> Only if author is me
+                                      if (userVM.userId != null &&
+                                          post.authorId == userVM.userId)
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const SizedBox(width: 8),
+                                            GestureDetector(
+                                              onTap: () => _showEditDialog(
+                                                  context, ventingVM, post),
+                                              child: const Icon(Icons.edit,
+                                                  size: 16, color: Colors.grey),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            GestureDetector(
+                                              onTap: () => _confirmDelete(
+                                                  context, post.id, ventingVM),
+                                              child: const Icon(Icons.delete,
+                                                  size: 16, color: Colors.grey),
+                                            ),
+                                          ],
+                                        ),
                                     ],
                                   ),
-                                  if (post.tags.isNotEmpty) ...[
-                                    const SizedBox(height: 6),
-                                    Wrap(
-                                      spacing: 6,
-                                      children: post.tags
-                                          .map((tag) => Text('#$tag',
-                                              style: TextStyle(
-                                                  color: _getTagColor(tag)
-                                                      .withOpacity(0.7),
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.bold)))
-                                          .toList(),
-                                    ),
-                                  ],
-                                  const SizedBox(height: 10),
+                                  const SizedBox(height: 6), // Tight spacing
+                                  // 2nd Line: Meta Info & Stats
                                   Row(
                                     children: [
-                                      _InteractionButton(
+                                      // Tag
+                                      if (post.tags.isNotEmpty)
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets.only(right: 6),
+                                          child: Text(
+                                            '[#${post.tags.first}]',
+                                            style: const TextStyle(
+                                                color: Colors.orangeAccent,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                      // Level Badge
+                                      // Level Badge
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 4, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: PublicPost.getLevelColor(
+                                                  post.authorLevel)
+                                              .withOpacity(0.2),
+                                          borderRadius:
+                                              BorderRadius.circular(4),
+                                          border: Border.all(
+                                              color: PublicPost.getLevelColor(
+                                                  post.authorLevel),
+                                              width: 0.5),
+                                        ),
+                                        child: Text(
+                                          'Lv.${post.authorLevel}',
+                                          style: TextStyle(
+                                            color: PublicPost.getLevelColor(
+                                                post.authorLevel),
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      // Author Nickname
+                                      Text(
+                                        post.authorNickname,
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                            color: PublicPost.getLevelColor(
+                                                post.authorLevel)),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      // Anger Level
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 4, vertical: 1),
+                                        decoration: BoxDecoration(
+                                            color: Colors.red.withOpacity(0.1),
+                                            borderRadius:
+                                                BorderRadius.circular(3)),
+                                        child: Text(
+                                            '분노 ${post.angerLevel.toInt()}%',
+                                            style: const TextStyle(
+                                                color: Colors.redAccent,
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.bold)),
+                                      ),
+
+                                      const Spacer(), // Push stats to right
+
+                                      // Right: Stats (Fire, Water, Comment)
+                                      _InteractionIcon(
                                         icon: Icons.fireplace,
-                                        label: '',
                                         count: post.supportCount,
-                                        itemCount: ventingVM.firewoodCount,
                                         color: Colors.orange,
                                         onTap: () async {
                                           if (userVM.isVibrationOn &&
@@ -244,12 +274,10 @@ class SquareScreen extends StatelessWidget {
                                           }
                                         },
                                       ),
-                                      const SizedBox(width: 8),
-                                      _InteractionButton(
+                                      const SizedBox(width: 12),
+                                      _InteractionIcon(
                                         icon: Icons.water_drop,
-                                        label: '',
                                         count: post.comfortCount,
-                                        itemCount: ventingVM.waterCount,
                                         color: Colors.blue,
                                         onTap: () async {
                                           if (userVM.isVibrationOn &&
@@ -269,13 +297,14 @@ class SquareScreen extends StatelessWidget {
                                           }
                                         },
                                       ),
-                                      const Spacer(),
+                                      const SizedBox(width: 12),
                                       Row(
                                         children: [
                                           const Icon(Icons.comment,
                                               size: 14, color: Colors.grey),
                                           const SizedBox(width: 4),
-                                          Text('${post.comments.length}',
+                                          Text(
+                                              '${post.totalCommentCount}', // Use recursive count
                                               style: const TextStyle(
                                                   color: Colors.grey,
                                                   fontSize: 12)),
@@ -293,6 +322,143 @@ class SquareScreen extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+
+  void _showReportBlockOption(
+      BuildContext context, PublicPost post, VentingViewModel ventingVM) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E1E1E),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading:
+                    const Icon(Icons.report_problem, color: Colors.redAccent),
+                title:
+                    const Text('신고하기', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showReportDialog(context, post, ventingVM);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.block, color: Colors.grey),
+                title: const Text('이 사용자의 글 보지 않기 (차단)',
+                    style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _confirmBlock(context, post.authorId, ventingVM);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showReportDialog(
+      BuildContext context, PublicPost post, VentingViewModel ventingVM) {
+    String selectedReason = '스팸/부적절한 홍보';
+    final List<String> reasons = [
+      '스팸/부적절한 홍보',
+      '욕설/비하 발언',
+      '음란물/유해한 정보',
+      '개인정보 노출',
+      '기타'
+    ];
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1E1E1E),
+              title: const Text('신고하기'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('신고 사유를 선택해주세요.',
+                      style: TextStyle(color: Colors.white70)),
+                  const SizedBox(height: 16),
+                  DropdownButton<String>(
+                    value: selectedReason,
+                    dropdownColor: const Color(0xFF2A2A2A),
+                    isExpanded: true,
+                    items: reasons.map((String reason) {
+                      return DropdownMenuItem<String>(
+                        value: reason,
+                        child: Text(reason,
+                            style: const TextStyle(color: Colors.white)),
+                      );
+                    }).toList(),
+                    onChanged: (String? newValue) {
+                      setState(() {
+                        selectedReason = newValue!;
+                      });
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('취소'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    // Reporter ID needed? UserVM is available via Provider in context usually,
+                    // but we can pass it or just use "anonymous" if needed.
+                    // Ideally pass UserViewModel too. Assuming VentingVM handles it or we pass a placeholder.
+                    // Let's pass 'reporter' string for now or fetch UserVM properly.
+                    final userVM =
+                        Provider.of<UserViewModel>(context, listen: false);
+                    ventingVM.reportPost(
+                        post.id, selectedReason, userVM.userId ?? 'anonymous');
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('신고가 접수되었습니다.')),
+                    );
+                  },
+                  child: const Text('신고', style: TextStyle(color: Colors.red)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _confirmBlock(
+      BuildContext context, String userId, VentingViewModel ventingVM) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: const Text('차단하기'),
+        content: const Text('이 사용자를 차단하시겠습니까?\n앞으로 이 사용자가 쓴 글이 보이지 않습니다.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context), child: const Text('취소')),
+          TextButton(
+            onPressed: () {
+              ventingVM.blockUser(userId);
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('사용자를 차단했습니다.')),
+              );
+            },
+            child: const Text('차단', style: TextStyle(color: Colors.red)),
+          ),
+        ],
       ),
     );
   }
@@ -447,26 +613,6 @@ class SquareScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPostMenu(
-      BuildContext context, VentingViewModel ventingVM, PublicPost post) {
-    return PopupMenuButton<String>(
-      icon: const Icon(Icons.more_vert, color: Colors.grey, size: 18),
-      onSelected: (value) {
-        if (value == 'edit') {
-          _showEditDialog(context, ventingVM, post);
-        } else if (value == 'delete') {
-          ventingVM.deletePost(post.id);
-        }
-      },
-      itemBuilder: (context) => [
-        const PopupMenuItem(value: 'edit', child: Text('수정')),
-        const PopupMenuItem(
-            value: 'delete',
-            child: Text('삭제', style: TextStyle(color: Colors.red))),
-      ],
-    );
-  }
-
   void _showEditDialog(
       BuildContext context, VentingViewModel ventingVM, PublicPost post) {
     final controller = TextEditingController(text: post.content);
@@ -495,6 +641,29 @@ class SquareScreen extends StatelessWidget {
     );
   }
 
+  void _confirmDelete(
+      BuildContext context, String postId, VentingViewModel ventingVM) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: const Text('게시글 삭제'),
+        content: const Text('정말로 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context), child: const Text('취소')),
+          TextButton(
+            onPressed: () {
+              ventingVM.deletePost(postId);
+              Navigator.pop(context);
+            },
+            child: const Text('삭제', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Color _getTagColor(String tag) {
     switch (tag) {
       case '직장':
@@ -513,55 +682,33 @@ class SquareScreen extends StatelessWidget {
   }
 }
 
-class _InteractionButton extends StatelessWidget {
+class _InteractionIcon extends StatelessWidget {
   final IconData icon;
-  final String label;
   final int count;
-  final int itemCount;
   final Color color;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
-  const _InteractionButton({
+  const _InteractionIcon({
     required this.icon,
-    required this.label,
     required this.count,
-    required this.itemCount,
     required this.color,
-    required this.onTap,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Determine if label should be shown
-    final bool showLabel = label.isNotEmpty;
-
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-            horizontal: 8, vertical: 4), // Reduced padding
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.2)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 4),
-            if (showLabel) ...[
-              Text(label,
-                  style: TextStyle(
-                      color: color, fontSize: 11, fontWeight: FontWeight.bold)),
-              const SizedBox(width: 4),
-            ],
-            Text('$count',
-                style: TextStyle(
-                    color: color, fontSize: 11, fontWeight: FontWeight.bold)),
-          ],
-        ),
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text('$count',
+              style: TextStyle(
+                  color: color, fontSize: 12, fontWeight: FontWeight.bold)),
+        ],
       ),
     );
   }
 }
+// Removed old _InteractionButton clas

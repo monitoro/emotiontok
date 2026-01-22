@@ -11,6 +11,7 @@ enum Persona {
 
 class UserViewModel with ChangeNotifier {
   String? _nickname;
+  String? _uuid; // Unique User ID
   String? _pin;
   Persona _selectedPersona = Persona.empathy;
   int _totalBurnCount = 0;
@@ -24,11 +25,64 @@ class UserViewModel with ChangeNotifier {
   final LocalAuthentication auth = LocalAuthentication();
 
   String? get nickname => _nickname;
+  String? get userId => _uuid;
   Persona get selectedPersona => _selectedPersona;
   bool get isLoggedIn => _isLoggedIn;
   int get totalBurnCount => _totalBurnCount;
-  int get level => (_totalBurnCount / 5).floor() + 1; // Level up Every 5 burns
-  int get expProgress => _totalBurnCount % 5;
+
+  // Level System Logic (Max Lv. 100)
+  // Formula: Cumulative XP required for Level L = 5 * L * (L - 1)
+  // Inverse: L ≈ sqrt(TotalXP / 5) + 0.5 (Simplified for quick calculation)
+  // We use a progressive step where each level requires 10 more XP than the last.
+  // Base XP for Lv.1 -> Lv.2 = 10.
+  // Lv.2 -> Lv.3 = 20...
+  int get level {
+    int xp = _totalBurnCount;
+    int lvl = 1;
+    int requiredForNext = 10;
+
+    while (xp >= requiredForNext && lvl < 100) {
+      xp -= requiredForNext;
+      lvl++;
+      requiredForNext += 10; // Increase requirement by 10 per level
+    }
+    return lvl;
+  }
+
+  // Progress to next level (0.0 to 1.0)
+  double get levelProgress {
+    int xp = _totalBurnCount;
+    int lvl = 1;
+    int requiredForNext = 10;
+
+    while (xp >= requiredForNext && lvl < 100) {
+      xp -= requiredForNext;
+      lvl++;
+      requiredForNext += 10;
+    }
+
+    if (lvl >= 100) return 1.0;
+    return xp / requiredForNext;
+  }
+
+  // Display string (e.g., "50/100")
+  String get expString {
+    int xp = _totalBurnCount;
+    int lvl = 1;
+    int requiredForNext = 10;
+
+    while (xp >= requiredForNext && lvl < 100) {
+      xp -= requiredForNext;
+      lvl++;
+      requiredForNext += 10;
+    }
+
+    if (lvl >= 100) return "MAX";
+    return "$xp / $requiredForNext";
+  }
+
+  int get expProgress =>
+      _totalBurnCount % 5; // Deprecated, kept for safety temporarily
   bool get isBgmOn => _isBgmOn;
   bool get isSfxOn => _isSfxOn;
   bool get isVibrationOn => _isVibrationOn;
@@ -43,6 +97,11 @@ class UserViewModel with ChangeNotifier {
   Future<void> loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
     _nickname = prefs.getString('nickname');
+    _uuid = prefs.getString('user_uuid');
+    if (_uuid == null) {
+      _uuid = _generateUuid();
+      await prefs.setString('user_uuid', _uuid!);
+    }
     _pin = prefs.getString('pin');
     _totalBurnCount = prefs.getInt('total_burn_count') ?? 0;
     final personaIndex = prefs.getInt('persona_index') ?? 1;
@@ -146,5 +205,12 @@ class UserViewModel with ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('selectedFont', fontName);
     notifyListeners();
+  }
+
+  String _generateUuid() {
+    // Simple custom UUID generation (Time + Random) since no uuid package
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final random = DateTime.now().microsecond; // Simple random seed
+    return 'user_${now}_$random';
   }
 }

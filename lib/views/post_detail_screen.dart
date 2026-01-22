@@ -18,7 +18,7 @@ class PostDetailScreen extends StatefulWidget {
 class _PostDetailScreenState extends State<PostDetailScreen> {
   final TextEditingController _commentController = TextEditingController();
   final FocusNode _commentFocusNode = FocusNode();
-  int? _replyToCommentIndex;
+  String? _replyToCommentId; // Changed from int index to String UUID
   String? _replyToNickname;
 
   @override
@@ -28,9 +28,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     super.dispose();
   }
 
-  void _enableReplyMode(int index, String nickname) {
+  void _enableReplyMode(String commentId, String nickname) {
     setState(() {
-      _replyToCommentIndex = index;
+      _replyToCommentId = commentId;
       _replyToNickname = nickname;
     });
     // Request focus and slight delay to ensure keyboard comes up
@@ -41,7 +41,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
   void _cancelReplyMode() {
     setState(() {
-      _replyToCommentIndex = null;
+      _replyToCommentId = null;
       _replyToNickname = null;
     });
     FocusScope.of(context).unfocus();
@@ -49,8 +49,20 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Find the latest version of the post from ViewModel
+    final ventingVM = Provider.of<VentingViewModel>(context);
+    PublicPost displayPost;
+    try {
+      displayPost = ventingVM.publicPosts.firstWhere(
+        (p) => p.id == widget.post.id,
+        orElse: () => widget.post,
+      );
+    } catch (e) {
+      displayPost = widget.post;
+    }
+
     final timeStr =
-        DateFormat('yyyy-MM-dd HH:mm').format(widget.post.timestamp);
+        DateFormat('yyyy-MM-dd HH:mm').format(displayPost.timestamp);
     final userVM = Provider.of<UserViewModel>(context, listen: false);
 
     return Scaffold(
@@ -64,9 +76,40 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(widget.post.authorNickname,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 18)),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 4, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: PublicPost.getLevelColor(
+                                    displayPost.authorLevel)
+                                .withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                                color: PublicPost.getLevelColor(
+                                    displayPost.authorLevel),
+                                width: 0.5),
+                          ),
+                          child: Text(
+                            'Lv.${displayPost.authorLevel}',
+                            style: TextStyle(
+                              color: PublicPost.getLevelColor(
+                                  displayPost.authorLevel),
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(displayPost.authorNickname,
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                                color: PublicPost.getLevelColor(
+                                    displayPost.authorLevel))),
+                      ],
+                    ),
                     Text(timeStr,
                         style:
                             const TextStyle(color: Colors.grey, fontSize: 12)),
@@ -81,22 +124,22 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     decoration: BoxDecoration(
                         color: Colors.red.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8)),
-                    child: Text('분노 ${widget.post.angerLevel.toInt()}%',
+                    child: Text('분노 ${displayPost.angerLevel.toInt()}%',
                         style: const TextStyle(
                             color: Colors.red, fontWeight: FontWeight.bold)),
                   ),
                 ),
                 const SizedBox(height: 24),
-                if (widget.post.imagePath != null) ...[
+                if (displayPost.imagePath != null) ...[
                   ClipRRect(
                     borderRadius: BorderRadius.circular(16),
                     child: kIsWeb
-                        ? Image.network(widget.post.imagePath!)
-                        : Image.file(File(widget.post.imagePath!)),
+                        ? Image.network(displayPost.imagePath!)
+                        : Image.file(File(displayPost.imagePath!)),
                   ),
                   const SizedBox(height: 24),
                 ],
-                Text(widget.post.content,
+                Text(displayPost.content,
                     style: const TextStyle(fontSize: 18, height: 1.6)),
                 const SizedBox(height: 32),
                 // Interaction Buttons
@@ -107,19 +150,19 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         _DetailInteractionButton(
                           icon: Icons.fireplace,
                           label: '장작 넣기',
-                          count: widget.post.supportCount,
+                          count: displayPost.supportCount,
                           itemCount: ventingVM.firewoodCount,
                           color: Colors.orange,
-                          onTap: () => ventingVM.addFirewood(widget.post.id),
+                          onTap: () => ventingVM.addFirewood(displayPost.id),
                         ),
                         const SizedBox(width: 12),
                         _DetailInteractionButton(
                           icon: Icons.water_drop,
                           label: '물 뿌리기',
-                          count: widget.post.comfortCount,
+                          count: displayPost.comfortCount,
                           itemCount: ventingVM.waterCount,
                           color: Colors.blue,
-                          onTap: () => ventingVM.addWater(widget.post.id),
+                          onTap: () => ventingVM.addWater(displayPost.id),
                         ),
                       ],
                     );
@@ -132,48 +175,39 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     style:
                         TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 const SizedBox(height: 16),
-                ...widget.post.comments.asMap().entries.map((entry) =>
-                    _buildCommentTile(context, entry.value, entry.key)),
+                ...displayPost.comments.map((comment) =>
+                    _buildCommentTree(context, comment, displayPost)),
               ],
             ),
           ),
-          _buildCommentInput(context, userVM),
+          _buildCommentInput(context, userVM, displayPost),
         ],
       ),
     );
   }
 
-  Widget _buildCommentTile(
-      BuildContext context, PublicComment comment, int index) {
-    final ventingVM = Provider.of<VentingViewModel>(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSingleComment(context, comment, index, isReply: false),
-          // Render replies
-          if (comment.replies.isNotEmpty) ...[
-            Padding(
-              padding: const EdgeInsets.only(left: 24, top: 8),
-              child: Column(
-                children: comment.replies
-                    .map((reply) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: _buildSingleComment(context, reply, index,
-                              isReply: true),
-                        ))
-                    .toList(),
-              ),
-            ),
-          ],
-        ],
-      ),
+  // Recursive builder for comment tree
+  Widget _buildCommentTree(
+      BuildContext context, PublicComment comment, PublicPost post,
+      {int depth = 0}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.only(left: depth * 16.0), // Indent based on depth
+          child:
+              _buildSingleComment(context, comment, post, isReply: depth > 0),
+        ),
+        // Recursive Call for replies
+        if (comment.replies.isNotEmpty)
+          ...comment.replies.map((reply) =>
+              _buildCommentTree(context, reply, post, depth: depth + 1)),
+      ],
     );
   }
 
   Widget _buildSingleComment(
-      BuildContext context, PublicComment comment, int parentIndex,
+      BuildContext context, PublicComment comment, PublicPost post,
       {required bool isReply}) {
     final ventingVM = Provider.of<VentingViewModel>(context, listen: false);
     return Column(
@@ -196,32 +230,37 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 const SizedBox(width: 8),
                 Text(DateFormat('HH:mm').format(comment.timestamp),
                     style: const TextStyle(color: Colors.grey, fontSize: 10)),
+                if (comment.authorId == post.authorId) ...[
+                  const SizedBox(width: 4),
+                  const Text('(작성자)',
+                      style: TextStyle(
+                          color: Color(0xFF2196F3), // Blue
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold)),
+                ],
               ],
             ),
             Row(
               children: [
-                if (!isReply) // Only allow replying to top-level comments
-                  GestureDetector(
-                    onTap: () =>
-                        _enableReplyMode(parentIndex, comment.nickname),
-                    child: const Text('답글 달기',
-                        style: TextStyle(color: Colors.grey, fontSize: 12)),
-                  ),
-                if (!isReply) const SizedBox(width: 12),
+                GestureDetector(
+                  onTap: () => _enableReplyMode(comment.id, comment.nickname),
+                  child: const Text('답글 달기',
+                      style: TextStyle(color: Colors.grey, fontSize: 12)),
+                ),
+                const SizedBox(width: 12),
                 _CommentInteraction(
                   icon: Icons.fireplace,
                   count: comment.supportCount,
                   color: Colors.orange,
-                  onTap: () => ventingVM.addFirewoodToComment(
-                      widget.post.id, parentIndex),
+                  onTap: () =>
+                      ventingVM.addFirewoodToComment(post.id, comment.id),
                 ),
                 const SizedBox(width: 8),
                 _CommentInteraction(
                   icon: Icons.water_drop,
                   count: comment.comfortCount,
                   color: Colors.blue,
-                  onTap: () =>
-                      ventingVM.addWaterToComment(widget.post.id, parentIndex),
+                  onTap: () => ventingVM.addWaterToComment(post.id, comment.id),
                 ),
               ],
             ),
@@ -236,7 +275,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
-  Widget _buildCommentInput(BuildContext context, UserViewModel userVM) {
+  Widget _buildCommentInput(
+      BuildContext context, UserViewModel userVM, PublicPost post) {
     return Container(
       color: const Color(0xFF1E1E1E),
       child: SafeArea(
@@ -289,19 +329,21 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         final ventingVM = Provider.of<VentingViewModel>(context,
                             listen: false);
 
-                        if (_replyToCommentIndex != null) {
-                          ventingVM.addReply(
-                            widget.post.id,
-                            _replyToCommentIndex!,
+                        if (_replyToCommentId != null) {
+                          ventingVM.addReplyToComment(
+                            post.id,
+                            _replyToCommentId!,
                             userVM.nickname ?? '익명',
                             _commentController.text,
+                            userVM.userId ?? 'anonymous',
                           );
                           _cancelReplyMode();
                         } else {
                           ventingVM.addComment(
-                            widget.post.id,
+                            post.id,
                             userVM.nickname ?? '익명',
                             _commentController.text,
+                            userVM.userId ?? 'anonymous',
                           );
                         }
 

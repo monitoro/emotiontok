@@ -1,15 +1,18 @@
 import 'dart:convert';
-import 'dart:typed_data';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import '../services/ai_service.dart';
 import '../viewmodels/user_viewmodel.dart';
 
-enum VentingMode { text, doodle, voice }
+enum VentingMode { text, voice }
 
 class PublicComment {
+  final String id; // Add ID for identification
+  final String authorId; // User UUID
   final String nickname;
   final String content;
   final DateTime timestamp;
@@ -18,16 +21,23 @@ class PublicComment {
   final List<PublicComment> replies;
 
   PublicComment({
+    String? id,
+    required this.authorId,
     required this.nickname,
     required this.content,
     required this.timestamp,
     this.supportCount = 0,
     this.comfortCount = 0,
     List<PublicComment>? replies,
-  }) : replies = replies ?? [];
+  })  : id = id ??
+            DateTime.now().millisecondsSinceEpoch.toString() +
+                nickname.hashCode.toString(),
+        replies = replies ?? [];
 
   Map<String, dynamic> toMap() {
     return {
+      'id': id,
+      'authorId': authorId,
       'nickname': nickname,
       'content': content,
       'timestamp': timestamp.toIso8601String(),
@@ -39,6 +49,8 @@ class PublicComment {
 
   factory PublicComment.fromMap(Map<String, dynamic> map) {
     return PublicComment(
+      id: map['id'],
+      authorId: map['authorId'] ?? '', // Fallback for old comments
       nickname: map['nickname'],
       content: map['content'],
       timestamp: DateTime.parse(map['timestamp']),
@@ -54,6 +66,7 @@ class PublicComment {
 
 class PublicPost {
   final String id;
+  final String authorId; // User UUID
   final String authorNickname;
   String content;
   final double angerLevel;
@@ -65,9 +78,28 @@ class PublicPost {
   final List<PublicComment> comments;
   final List<String> tags;
   final String fontName;
+  final int authorLevel;
+
+  // Recursive comment count getter
+  int get totalCommentCount {
+    int count = 0;
+    for (var comment in comments) {
+      count += 1 + _countReplies(comment);
+    }
+    return count;
+  }
+
+  int _countReplies(PublicComment comment) {
+    int count = 0;
+    for (var reply in comment.replies) {
+      count += 1 + _countReplies(reply);
+    }
+    return count;
+  }
 
   PublicPost({
     required this.id,
+    required this.authorId,
     required this.authorNickname,
     required this.content,
     required this.angerLevel,
@@ -79,6 +111,7 @@ class PublicPost {
     List<PublicComment>? comments,
     this.tags = const [],
     this.fontName = '나눔 펜 (손글씨)',
+    this.authorLevel = 1,
   }) : comments = comments ?? [];
 
   Map<String, dynamic> toMap() {
@@ -95,12 +128,24 @@ class PublicPost {
       'comments': comments.map((c) => c.toMap()).toList(),
       'tags': tags,
       'fontName': fontName,
+      'authorLevel': authorLevel,
+      'authorId': authorId,
     };
+  }
+
+  static Color getLevelColor(int level) {
+    if (level >= 90) return const Color(0xFFFFD700); // Gold (Legend)
+    if (level >= 70) return const Color(0xFFE91E63); // Pink (Master)
+    if (level >= 50) return const Color(0xFF9C27B0); // Purple (Diamond)
+    if (level >= 30) return const Color(0xFF2196F3); // Blue (Platinum)
+    if (level >= 10) return const Color(0xFF4CAF50); // Green (Gold)
+    return Colors.white70; // Default (Beginner)
   }
 
   factory PublicPost.fromMap(Map<String, dynamic> map) {
     return PublicPost(
       id: map['id'],
+      authorId: map['authorId'] ?? '', // Fallback for old posts
       authorNickname: map['authorNickname'],
       content: map['content'],
       angerLevel: map['angerLevel'],
@@ -117,6 +162,7 @@ class PublicPost {
           : null,
       tags: List<String>.from(map['tags'] ?? []),
       fontName: map['fontName'] ?? '나눔 펜 (손글씨)',
+      authorLevel: map['authorLevel'] ?? 1,
     );
   }
 }
@@ -181,7 +227,7 @@ class VentingViewModel with ChangeNotifier {
   bool _isBurning = false;
   String? _lastAiResponse;
   int _todaysBurnCount = 0;
-  Uint8List? _doodleData;
+
   String? _pickedImagePath;
   bool _shareToSquare = false;
 
@@ -195,12 +241,74 @@ class VentingViewModel with ChangeNotifier {
   List<PublicPost> _publicPosts = [];
 
   final List<PrivatePost> _privateHistory = [];
+
+  final Set<String> _readPostIds = {}; // Track read posts
+  final Set<String> _blockedUserIds = {}; // Blocked user IDs
   DateTime _selectedCalendarDate = DateTime.now();
 
   VentingViewModel() {
     _loadPrivateHistory();
-    // _loadPublicPosts(); // Local persistence replaced by Firestore
+    _loadReadPostIds(); // Load read state
+    _loadBlockedUsers(); // Load blocked users
     _initFirebase();
+  }
+
+  Future<void> _loadReadPostIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String>? ids = prefs.getStringList('read_post_ids');
+    if (ids != null) {
+      _readPostIds.addAll(ids);
+      notifyListeners();
+    }
+  }
+
+  Future<void> markPostAsRead(String postId) async {
+    if (!_readPostIds.contains(postId)) {
+      _readPostIds.add(postId);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('read_post_ids', _readPostIds.toList());
+      notifyListeners();
+    }
+  }
+
+  Future<void> _loadBlockedUsers() async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String>? ids = prefs.getStringList('blocked_user_ids');
+    if (ids != null) {
+      _blockedUserIds.addAll(ids);
+      notifyListeners();
+    }
+  }
+
+  Future<void> blockUser(String userId) async {
+    if (!_blockedUserIds.contains(userId)) {
+      _blockedUserIds.add(userId);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('blocked_user_ids', _blockedUserIds.toList());
+      notifyListeners();
+    }
+  }
+
+  bool isUserBlocked(String userId) {
+    return _blockedUserIds.contains(userId);
+  }
+
+  Future<void> reportPost(
+      String postId, String reason, String reporterId) async {
+    try {
+      await _firestore.collection('reports').add({
+        'postId': postId,
+        'reason': reason,
+        'reporterId': reporterId,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print("Error reporting post: $e");
+    }
+  }
+
+  bool isPostRead(String postId) {
+    return _readPostIds.contains(postId);
   }
 
   Future<void> _initFirebase() async {
@@ -252,7 +360,7 @@ class VentingViewModel with ChangeNotifier {
   bool get isBurning => _isBurning;
   String? get lastAiResponse => _lastAiResponse;
   int get todaysBurnCount => _todaysBurnCount;
-  Uint8List? get doodleData => _doodleData;
+
   String? get pickedImagePath => _pickedImagePath;
   bool get shareToSquare => _shareToSquare;
   int get firewoodCount => _firewoodCount;
@@ -297,6 +405,13 @@ class VentingViewModel with ChangeNotifier {
     if (_selectedTag != null && _selectedTag != '전체') {
       filteredList =
           filteredList.where((p) => p.tags.contains(_selectedTag)).toList();
+    }
+
+    // Filter blocked users
+    if (_blockedUserIds.isNotEmpty) {
+      filteredList = filteredList
+          .where((p) => !_blockedUserIds.contains(p.authorId))
+          .toList();
     }
 
     // Filter by period
@@ -364,11 +479,6 @@ class VentingViewModel with ChangeNotifier {
     notifyListeners();
   }
 
-  void setDoodleData(Uint8List? data) {
-    _doodleData = data;
-    notifyListeners();
-  }
-
   void setPickedImagePath(String? path) {
     _pickedImagePath = path;
     notifyListeners();
@@ -411,9 +521,10 @@ class VentingViewModel with ChangeNotifier {
   }
 
   Future<void> addComment(
-      String postId, String nickname, String content) async {
+      String postId, String nickname, String content, String authorId) async {
     try {
       final comment = PublicComment(
+        authorId: authorId,
         nickname: nickname,
         content: content,
         timestamp: DateTime.now(),
@@ -432,8 +543,8 @@ class VentingViewModel with ChangeNotifier {
   }
 
   void finishBurning(Persona persona, String text, UserViewModel userVM,
-      {double? angerLevel}) async {
-    final extractedTags = _extractTags(text);
+      {double? angerLevel, String? manualTag}) async {
+    final extractedTags = _extractTags(text, manualTag: manualTag);
     final now = DateTime.now();
     String postId = now.millisecondsSinceEpoch.toString();
 
@@ -452,6 +563,8 @@ class VentingViewModel with ChangeNotifier {
         imagePath: _pickedImagePath,
         tags: extractedTags,
         fontName: userVM.selectedFont,
+        authorLevel: userVM.level,
+        authorId: userVM.userId ?? 'anonymous',
       );
       await docRef.set(newPublicPost.toMap());
     }
@@ -502,6 +615,7 @@ class VentingViewModel with ChangeNotifier {
     // Add AI Response as a comment to the captured public post
     if (_shareToSquare && newPublicPost != null && response.isNotEmpty) {
       final aiComment = PublicComment(
+        authorId: 'ai_helper', // AI ID
         nickname: '마음이 (${_getPersonaName(persona)})',
         content: response,
         timestamp: DateTime.now(),
@@ -531,16 +645,26 @@ class VentingViewModel with ChangeNotifier {
     }
   }
 
-  List<String> _extractTags(String content) {
-    final Map<String, List<String>> keywordMap = {
-      '직장': ['회사', '상사', '업무', '야근', '출근', '퇴근', '동료', '월급'],
-      '관계': ['친구', '싸움', '오해', '절교', '비난', '모임'],
-      '일상': ['교통', '지하철', '날씨', '점심', '피곤'],
-      '연애': ['이별', '다툼', '서운', '짝사랑'],
-      '건강': ['아픔', '스트레스', '불면', '운동'],
-    };
+  static const Map<String, List<String>> keywordMap = {
+    '직장': ['회사', '상사', '업무', '야근', '출근', '퇴근', '동료', '월급'],
+    '관계': ['친구', '싸움', '오해', '절교', '비난', '모임'],
+    '일상': ['교통', '지하철', '날씨', '점심', '피곤'],
+    '연애': ['이별', '다툼', '서운', '짝사랑'],
+    '건강': ['아픔', '스트레스', '불면', '운동'],
+  };
 
+  List<String> get availableTags => keywordMap.keys.toList();
+
+  List<String> _extractTags(String content, {String? manualTag}) {
     final List<String> tags = [];
+
+    // 1. Manual Tag Priority
+    if (manualTag != null && manualTag != '자동') {
+      tags.add(manualTag);
+      return tags; // If manual tag is selected, use only that one (or you can add others too)
+    }
+
+    // 2. Auto Extraction
     keywordMap.forEach((tag, keywords) {
       for (var kw in keywords) {
         if (content.contains(kw)) {
@@ -577,42 +701,120 @@ class VentingViewModel with ChangeNotifier {
   }
 
   // Not implemented in MVP for nested deep interactions on arrays
-  Future<bool> addFirewoodToComment(String postId, int commentIndex) async {
-    // requires reading doc, modifying array, writing back.
+  // Recursive Helper to find and update comment
+  bool _findAndUpdateComment(List<dynamic> comments, String targetId,
+      Function(Map<String, dynamic>) updateAction) {
+    for (var i = 0; i < comments.length; i++) {
+      Map<String, dynamic> comment = comments[i];
+      if (comment['id'] == targetId) {
+        updateAction(comment);
+        comments[i] = comment; // Save back
+        return true;
+      }
+      // Recursive check replies
+      if (comment['replies'] != null) {
+        List<dynamic> replies = comment['replies'];
+        if (_findAndUpdateComment(replies, targetId, updateAction)) {
+          comment['replies'] = replies; // Save back updated replies
+          comments[i] = comment;
+          return true;
+        }
+      }
+    }
     return false;
   }
 
-  Future<bool> addWaterToComment(String postId, int commentIndex) async {
-    // requires reading doc, modifying array, writing back.
-    return false;
-  }
-
-  Future<void> addReply(
-      String postId, int commentIndex, String nickname, String content) async {
+  Future<void> addReplyToComment(String postId, String parentCommentId,
+      String nickname, String content, String authorId) async {
     final postRef = _firestore.collection('posts').doc(postId);
 
-    return _firestore.runTransaction((transaction) async {
+    await _firestore.runTransaction((transaction) async {
       final snapshot = await transaction.get(postRef);
       if (!snapshot.exists) return;
 
       final data = snapshot.data()!;
-      // Need to parse comments properly
-      // This is a bit risky if data structure changes, but assuming strict map adherence:
-      List<dynamic> commentsData = data['comments'] ?? [];
-      if (commentIndex < commentsData.length) {
-        Map<String, dynamic> targetComment = commentsData[commentIndex];
+      List<dynamic> commentsData = List.from(data['comments'] ?? []);
+
+      bool found =
+          _findAndUpdateComment(commentsData, parentCommentId, (targetComment) {
         List<dynamic> replies = targetComment['replies'] ?? [];
-
         replies.add(PublicComment(
-                nickname: nickname, content: content, timestamp: DateTime.now())
-            .toMap());
-
+          authorId: authorId,
+          nickname: nickname,
+          content: content,
+          timestamp: DateTime.now(),
+        ).toMap());
         targetComment['replies'] = replies;
-        commentsData[commentIndex] = targetComment;
+      });
 
+      if (found) {
         transaction.update(postRef, {'comments': commentsData});
       }
     });
+  }
+
+  Future<bool> addFirewoodToComment(String postId, String commentId) async {
+    if (_firewoodCount <= 0) return false;
+    final postRef = _firestore.collection('posts').doc(postId);
+    bool success = false;
+
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(postRef);
+      if (!snapshot.exists) return;
+
+      List<dynamic> commentsData =
+          List.from(snapshot.data()!['comments'] ?? []);
+
+      bool found =
+          _findAndUpdateComment(commentsData, commentId, (targetComment) {
+        targetComment['supportCount'] =
+            (targetComment['supportCount'] ?? 0) + 1;
+      });
+
+      if (found) {
+        transaction.update(postRef, {'comments': commentsData});
+        success = true;
+      }
+    });
+
+    if (success) {
+      _firewoodCount--;
+      notifyListeners();
+      return true;
+    }
+    return false;
+  }
+
+  Future<bool> addWaterToComment(String postId, String commentId) async {
+    if (_waterCount <= 0) return false;
+    final postRef = _firestore.collection('posts').doc(postId);
+    bool success = false;
+
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(postRef);
+      if (!snapshot.exists) return;
+
+      List<dynamic> commentsData =
+          List.from(snapshot.data()!['comments'] ?? []);
+
+      bool found =
+          _findAndUpdateComment(commentsData, commentId, (targetComment) {
+        targetComment['comfortCount'] =
+            (targetComment['comfortCount'] ?? 0) + 1;
+      });
+
+      if (found) {
+        transaction.update(postRef, {'comments': commentsData});
+        success = true;
+      }
+    });
+
+    if (success) {
+      _waterCount--;
+      notifyListeners();
+      return true;
+    }
+    return false;
   }
 
   PublicPost? getPublicPost(String id) {

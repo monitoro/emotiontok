@@ -4,11 +4,9 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import 'package:signature/signature.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../viewmodels/user_viewmodel.dart';
 import '../viewmodels/venting_viewmodel.dart';
-import '../widgets/doodle_view.dart';
 import '../widgets/point_display.dart';
 import '../widgets/pixel_shred_animation.dart';
 import '../painter/graph_paper_painter.dart';
@@ -30,11 +28,7 @@ class _HomeScreenState extends State<HomeScreen>
   final ImagePicker _picker = ImagePicker();
   bool _isPressing = false;
   late AnimationController _pulseController;
-  final SignatureController _signatureController = SignatureController(
-    penStrokeWidth: 5,
-    penColor: Colors.red,
-    exportBackgroundColor: Colors.transparent,
-  );
+  String _selectedTag = '자동';
 
   late AudioPlayer _sfxPlayer;
   late AudioPlayer _risingSfxPlayer;
@@ -71,7 +65,6 @@ class _HomeScreenState extends State<HomeScreen>
     _pulseController.dispose();
     _textController.dispose();
     _textFocusNode.dispose(); // Dispose focus node
-    _signatureController.dispose();
     super.dispose();
   }
 
@@ -109,7 +102,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _burnEmotions(String text) {
-    if (text.isEmpty && _signatureController.isEmpty) return;
+    if (text.isEmpty) return;
 
     final ventingVM = Provider.of<VentingViewModel>(context, listen: false);
     final userVM = Provider.of<UserViewModel>(context, listen: false);
@@ -157,10 +150,10 @@ class _HomeScreenState extends State<HomeScreen>
             text,
             userVM,
             angerLevel: _angerLevel,
+            manualTag: _selectedTag,
           );
 
           _textController.clear();
-          _signatureController.clear();
           setState(() {
             _angerLevel = 0;
             _hasConfirmedShare = false; // Reset confirmation
@@ -205,22 +198,8 @@ class _HomeScreenState extends State<HomeScreen>
                                   height: 150),
                         ),
                       ),
-                    if (ventingVM.currentMode == VentingMode.doodle &&
-                        ventingVM.doodleData != null)
-                      Container(
-                        height: 200,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey),
-                        ),
-                        child: Image.memory(ventingVM.doodleData!),
-                      ),
                     Text(
-                      text.isEmpty
-                          ? (ventingVM.currentMode == VentingMode.doodle
-                              ? "(그림으로 표현된 마음)"
-                              : "...")
-                          : text,
+                      text.isEmpty ? "..." : text,
                       style: AppFonts.getFont(
                         userVM.selectedFont,
                         textStyle: const TextStyle(
@@ -383,9 +362,6 @@ class _HomeScreenState extends State<HomeScreen>
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('안녕하세요, ${userVM.nickname}님',
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             Row(
               children: [
                 Text('Lv.${userVM.level}',
@@ -452,29 +428,15 @@ class _HomeScreenState extends State<HomeScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const SizedBox(height: 16),
+
                 // Input Area
-                ventingVM.currentMode == VentingMode.text
-                    ? AngerMemoField(
-                        controller: _textController,
-                        focusNode:
-                            _textFocusNode, // Pass focus node for complete control
-                        hintText: '지금 무슨 일이 있었나요? 속 시원하게 털어놓으세요...',
-                      )
-                    : Container(
-                        height: 300,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1E1E1E),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: _isPressing
-                                ? Colors.red.withOpacity(_angerLevel / 100)
-                                : Colors.transparent,
-                            width: 2,
-                          ),
-                        ),
-                        child: DoodleView(controller: _signatureController),
-                      ),
+                AngerMemoField(
+                  controller: _textController,
+                  focusNode:
+                      _textFocusNode, // Pass focus node for complete control
+                  hintText: '지금 무슨 일이 있었나요? 속 시원하게 털어놓으세요...',
+                ),
 
                 const SizedBox(height: 16),
 
@@ -514,16 +476,49 @@ class _HomeScreenState extends State<HomeScreen>
                               : Colors.grey),
                       onPressed: () => ventingVM.setMode(VentingMode.text),
                     ),
-                    IconButton(
-                      icon: Icon(Icons.brush,
-                          color: ventingVM.currentMode == VentingMode.doodle
-                              ? const Color(0xFFFF4D00)
-                              : Colors.grey),
-                      onPressed: () => ventingVM.setMode(VentingMode.doodle),
-                    ),
+                    // Removed Doodle Button
                     IconButton(
                       icon: const Icon(Icons.image, color: Colors.grey),
                       onPressed: () => _pickImage(ventingVM),
+                    ),
+                    const Spacer(),
+                    const Text('태그 선택',
+                        style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(20),
+                        border:
+                            Border.all(color: Colors.white.withOpacity(0.1)),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _selectedTag,
+                          dropdownColor: const Color(0xFF2A2A2A),
+                          icon: const Icon(Icons.arrow_drop_down,
+                              color: Colors.grey),
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 14),
+                          onChanged: (String? newValue) {
+                            setState(() {
+                              _selectedTag = newValue!;
+                            });
+                          },
+                          items: ['자동', ...ventingVM.availableTags]
+                              .map<DropdownMenuItem<String>>((String value) {
+                            return DropdownMenuItem<String>(
+                              value: value,
+                              child: Text(value,
+                                  style: TextStyle(
+                                      color: value == _selectedTag
+                                          ? const Color(0xFFFF4D00)
+                                          : Colors.white)),
+                            );
+                          }).toList(),
+                        ),
+                      ),
                     ),
                   ],
                 ),
