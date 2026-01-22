@@ -17,11 +17,34 @@ class PostDetailScreen extends StatefulWidget {
 
 class _PostDetailScreenState extends State<PostDetailScreen> {
   final TextEditingController _commentController = TextEditingController();
+  final FocusNode _commentFocusNode = FocusNode();
+  int? _replyToCommentIndex;
+  String? _replyToNickname;
 
   @override
   void dispose() {
     _commentController.dispose();
+    _commentFocusNode.dispose();
     super.dispose();
+  }
+
+  void _enableReplyMode(int index, String nickname) {
+    setState(() {
+      _replyToCommentIndex = index;
+      _replyToNickname = nickname;
+    });
+    // Request focus and slight delay to ensure keyboard comes up
+    Future.delayed(const Duration(milliseconds: 100), () {
+      FocusScope.of(context).requestFocus(_commentFocusNode);
+    });
+  }
+
+  void _cancelReplyMode() {
+    setState(() {
+      _replyToCommentIndex = null;
+      _replyToNickname = null;
+    });
+    FocusScope.of(context).unfocus();
   }
 
   @override
@@ -128,46 +151,88 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Text(comment.nickname,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: Colors.orange)),
-                  const SizedBox(width: 8),
-                  Text(DateFormat('HH:mm').format(comment.timestamp),
-                      style: const TextStyle(color: Colors.grey, fontSize: 10)),
-                ],
+          _buildSingleComment(context, comment, index, isReply: false),
+          // Render replies
+          if (comment.replies.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.only(left: 24, top: 8),
+              child: Column(
+                children: comment.replies
+                    .map((reply) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: _buildSingleComment(context, reply, index,
+                              isReply: true),
+                        ))
+                    .toList(),
               ),
-              Row(
-                children: [
-                  _CommentInteraction(
-                    icon: Icons.fireplace,
-                    count: comment.supportCount,
-                    color: Colors.orange,
-                    onTap: () =>
-                        ventingVM.addFirewoodToComment(widget.post.id, index),
-                  ),
-                  const SizedBox(width: 8),
-                  _CommentInteraction(
-                    icon: Icons.water_drop,
-                    count: comment.comfortCount,
-                    color: Colors.blue,
-                    onTap: () =>
-                        ventingVM.addWaterToComment(widget.post.id, index),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(comment.content, style: const TextStyle(fontSize: 14)),
+            ),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _buildSingleComment(
+      BuildContext context, PublicComment comment, int parentIndex,
+      {required bool isReply}) {
+    final ventingVM = Provider.of<VentingViewModel>(context, listen: false);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                if (isReply)
+                  const Icon(Icons.subdirectory_arrow_right,
+                      size: 16, color: Colors.grey),
+                if (isReply) const SizedBox(width: 4),
+                Text(comment.nickname,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: Colors.orange)),
+                const SizedBox(width: 8),
+                Text(DateFormat('HH:mm').format(comment.timestamp),
+                    style: const TextStyle(color: Colors.grey, fontSize: 10)),
+              ],
+            ),
+            Row(
+              children: [
+                if (!isReply) // Only allow replying to top-level comments
+                  GestureDetector(
+                    onTap: () =>
+                        _enableReplyMode(parentIndex, comment.nickname),
+                    child: const Text('답글 달기',
+                        style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  ),
+                if (!isReply) const SizedBox(width: 12),
+                _CommentInteraction(
+                  icon: Icons.fireplace,
+                  count: comment.supportCount,
+                  color: Colors.orange,
+                  onTap: () => ventingVM.addFirewoodToComment(
+                      widget.post.id, parentIndex),
+                ),
+                const SizedBox(width: 8),
+                _CommentInteraction(
+                  icon: Icons.water_drop,
+                  count: comment.comfortCount,
+                  color: Colors.blue,
+                  onTap: () =>
+                      ventingVM.addWaterToComment(widget.post.id, parentIndex),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Padding(
+          padding: EdgeInsets.only(left: isReply ? 20.0 : 0.0),
+          child: Text(comment.content, style: const TextStyle(fontSize: 14)),
+        ),
+      ],
     );
   }
 
@@ -176,39 +241,79 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       color: const Color(0xFF1E1E1E),
       child: SafeArea(
         top: false,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          decoration: const BoxDecoration(
-            border: Border(top: BorderSide(color: Colors.white12)),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _commentController,
-                  decoration: const InputDecoration(
-                    hintText: '따뜻한 위로를 건네주세요...',
-                    border: InputBorder.none,
-                  ),
+        child: Column(
+          children: [
+            if (_replyToNickname != null)
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                color: Colors.orange.withOpacity(0.1),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('$_replyToNickname 님에게 답글 작성 중...',
+                        style: const TextStyle(
+                            color: Colors.orange, fontSize: 12)),
+                    GestureDetector(
+                      onTap: _cancelReplyMode,
+                      child: const Icon(Icons.close,
+                          size: 16, color: Colors.orange),
+                    ),
+                  ],
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.send, color: Color(0xFFFF4D00)),
-                onPressed: () {
-                  if (_commentController.text.isNotEmpty) {
-                    Provider.of<VentingViewModel>(context, listen: false)
-                        .addComment(
-                      widget.post.id,
-                      userVM.nickname ?? '익명',
-                      _commentController.text,
-                    );
-                    _commentController.clear();
-                    FocusScope.of(context).unfocus();
-                  }
-                },
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: Colors.white12)),
               ),
-            ],
-          ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _commentController,
+                      focusNode: _commentFocusNode,
+                      decoration: InputDecoration(
+                        hintText: _replyToNickname != null
+                            ? '답글을 입력하세요...'
+                            : '따뜻한 위로를 건네주세요...',
+                        border: InputBorder.none,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.send, color: Color(0xFFFF4D00)),
+                    onPressed: () {
+                      if (_commentController.text.isNotEmpty) {
+                        final ventingVM = Provider.of<VentingViewModel>(context,
+                            listen: false);
+
+                        if (_replyToCommentIndex != null) {
+                          ventingVM.addReply(
+                            widget.post.id,
+                            _replyToCommentIndex!,
+                            userVM.nickname ?? '익명',
+                            _commentController.text,
+                          );
+                          _cancelReplyMode();
+                        } else {
+                          ventingVM.addComment(
+                            widget.post.id,
+                            userVM.nickname ?? '익명',
+                            _commentController.text,
+                          );
+                        }
+
+                        _commentController.clear();
+                        FocusScope.of(context).unfocus();
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

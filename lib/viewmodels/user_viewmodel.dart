@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:local_auth/local_auth.dart';
 
 enum Persona {
   fighter, // 전투형
@@ -17,7 +18,10 @@ class UserViewModel with ChangeNotifier {
   bool _isBgmOn = true;
   bool _isSfxOn = true;
   bool _isVibrationOn = true;
+  bool _isBiometricEnabled = false;
   String _selectedFont = '나눔 펜 (손글씨)'; // Default font
+
+  final LocalAuthentication auth = LocalAuthentication();
 
   String? get nickname => _nickname;
   Persona get selectedPersona => _selectedPersona;
@@ -28,13 +32,15 @@ class UserViewModel with ChangeNotifier {
   bool get isBgmOn => _isBgmOn;
   bool get isSfxOn => _isSfxOn;
   bool get isVibrationOn => _isVibrationOn;
+  bool get isBiometricEnabled => _isBiometricEnabled;
   String get selectedFont => _selectedFont;
 
   UserViewModel() {
-    _loadUserData();
+    // Constructor no longer automatically loads data.
+    // Explicit call required via loadUserData()
   }
 
-  Future<void> _loadUserData() async {
+  Future<void> loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
     _nickname = prefs.getString('nickname');
     _pin = prefs.getString('pin');
@@ -44,6 +50,7 @@ class UserViewModel with ChangeNotifier {
     _isBgmOn = prefs.getBool('isBgmOn') ?? true;
     _isSfxOn = prefs.getBool('isSfxOn') ?? true;
     _isVibrationOn = prefs.getBool('isVibrationOn') ?? true;
+    _isBiometricEnabled = prefs.getBool('isBiometricEnabled') ?? false;
     _selectedFont = prefs.getString('selectedFont') ?? '나눔 펜 (손글씨)';
     _isLoggedIn = _nickname != null;
     notifyListeners();
@@ -101,6 +108,34 @@ class UserViewModel with ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('isVibrationOn', value);
     notifyListeners();
+  }
+
+  Future<void> toggleBiometric(bool value) async {
+    _isBiometricEnabled = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isBiometricEnabled', value);
+    notifyListeners();
+  }
+
+  Future<bool> authenticate() async {
+    try {
+      final bool canAuthenticateWithBiometrics = await auth.canCheckBiometrics;
+      final bool canAuthenticate =
+          canAuthenticateWithBiometrics || await auth.isDeviceSupported();
+
+      if (!canAuthenticate) {
+        return false;
+      }
+
+      final bool didAuthenticate = await auth.authenticate(
+        localizedReason: '앱에 로그인하려면 인증해주세요.',
+        biometricOnly: true,
+      );
+      return didAuthenticate;
+    } catch (e) {
+      debugPrint('Biometric Auth Error: $e');
+      return false;
+    }
   }
 
   Future<void> setFont(String fontName) async {

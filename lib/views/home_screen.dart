@@ -34,31 +34,16 @@ class _HomeScreenState extends State<HomeScreen>
     exportBackgroundColor: Colors.transparent,
   );
 
-  late AudioPlayer _bgmPlayer;
   late AudioPlayer _sfxPlayer;
   late AudioPlayer _risingSfxPlayer;
 
   @override
   void initState() {
     super.initState();
-    _bgmPlayer = AudioPlayer();
     _sfxPlayer = AudioPlayer();
     _risingSfxPlayer = AudioPlayer();
 
-    _bgmPlayer.setReleaseMode(ReleaseMode.loop);
     _risingSfxPlayer.setReleaseMode(ReleaseMode.loop); // Loop for rising effect
-
-    // Play BGM if enabled
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final userVM = Provider.of<UserViewModel>(context, listen: false);
-      _updateBgmState(userVM.isBgmOn);
-
-      // Listen to settings changes
-      userVM.addListener(() {
-        if (!mounted) return;
-        _updateBgmState(userVM.isBgmOn);
-      });
-    });
 
     _pulseController = AnimationController(
       vsync: this,
@@ -79,7 +64,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
-    _bgmPlayer.dispose();
     _sfxPlayer.dispose();
     _risingSfxPlayer.dispose();
     _pulseController.dispose();
@@ -88,22 +72,12 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
-  void _updateBgmState(bool isBgmOn) async {
-    if (isBgmOn) {
-      if (_bgmPlayer.state != PlayerState.playing) {
-        // Assuming bgm.mp3 exists in assets/sounds/
-        try {
-          await _bgmPlayer.play(AssetSource('sounds/bgm.mp3'), volume: 0.3);
-        } catch (e) {
-          // debugPrint('BGM play failed: $e');
-        }
-      }
-    } else {
-      await _bgmPlayer.stop();
-    }
-  }
+  bool _hasConfirmedShare = false;
 
   void _startPressing() async {
+    // If sharing is enabled and not yet confirmed, do not start pressing.
+    // This logic is now handled in onLongPressStart before calling this,
+    // but we keep a check here just in case.
     setState(() => _isPressing = true);
     _pulseController.forward();
 
@@ -138,7 +112,6 @@ class _HomeScreenState extends State<HomeScreen>
     final userVM = Provider.of<UserViewModel>(context, listen: false);
 
     // 1. Start burning animation
-    // 1. Start burning animation
     ventingVM.startBurning();
 
     // Play burning SFX if enabled
@@ -151,9 +124,11 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     // Calculate delay based on text length (2s ~ 4s)
-    // 2.0 base + (length / 50) seconds, clamped to 4.0 max
     final double calculatedDelaySeconds =
         (2.0 + (text.length / 50.0)).clamp(2.0, 4.0);
+
+    // Remove focus BEFORE showing dialog to prevent auto-restoration
+    FocusScope.of(context).unfocus();
 
     // 2. Show burning dialog overlay (Pixel Shred Effect)
     showDialog(
@@ -163,8 +138,14 @@ class _HomeScreenState extends State<HomeScreen>
       builder: (context) => Center(
           child: PixelShredAnimation(
         delay: Duration(milliseconds: (calculatedDelaySeconds * 1000).toInt()),
-        onComplete: () {
-          Navigator.of(context).pop(); // Close dialog
+        onComplete: () async {
+          Navigator.of(context).pop(); // Close burning dialog
+          // Delay unfocus to override any focus restoration
+          await Future.delayed(const Duration(milliseconds: 150));
+          if (context.mounted) {
+            FocusScope.of(context).unfocus();
+          }
+
           // 3. Save post and process
           ventingVM.finishBurning(
             userVM.selectedPersona,
@@ -175,10 +156,15 @@ class _HomeScreenState extends State<HomeScreen>
 
           _textController.clear();
           _signatureController.clear();
-          setState(() => _angerLevel = 0);
+          setState(() {
+            _angerLevel = 0;
+            _hasConfirmedShare = false; // Reset confirmation
+          });
 
           // Show AI response dialog
-          _showAiResponseDialog(context, ventingVM);
+          if (context.mounted) {
+            _showAiResponseDialog(context, ventingVM);
+          }
         },
         child: Material(
           color: Colors.transparent,
@@ -214,7 +200,6 @@ class _HomeScreenState extends State<HomeScreen>
                                   height: 150),
                         ),
                       ),
-
                     if (ventingVM.currentMode == VentingMode.doodle &&
                         ventingVM.doodleData != null)
                       Container(
@@ -223,15 +208,8 @@ class _HomeScreenState extends State<HomeScreen>
                         decoration: BoxDecoration(
                           border: Border.all(color: Colors.grey),
                         ),
-                        child: Image.memory(ventingVM
-                            .doodleData!), // This assumes doodle is saved, but let's check.
-                        // Wait, doodleData is set on finishBurning in VM? No, we check controller directly here.
+                        child: Image.memory(ventingVM.doodleData!),
                       ),
-
-                    // For simplicity in this step, let's just show text.
-                    // If doodle mode, we might need to capture it first?
-                    // The constraints of the prompt imply we just capture what we see.
-                    // Let's render the text nicely.
                     Text(
                       text.isEmpty
                           ? (ventingVM.currentMode == VentingMode.doodle
@@ -294,6 +272,7 @@ class _HomeScreenState extends State<HomeScreen>
             TextButton(
               onPressed: () {
                 vm.clearAiResponse();
+                FocusScope.of(context).unfocus();
                 Navigator.pop(context);
               },
               child: const Text('닫기', style: TextStyle(color: Colors.grey)),
@@ -304,10 +283,91 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  void _showSafetyDialog(BuildContext context, VentingViewModel ventingVM) {
+    // Remove focus BEFORE showing dialog to prevent auto-restoration
+    FocusScope.of(context).unfocus();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.amber),
+            SizedBox(width: 8),
+            Text('잠깐만요!', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+        content: const Text(
+          '모두가 보는 공간에 마음이 표현됩니다.\n개인이 특정되는 정보의 노출 위험이 없는지 다시 한번 확인해 주세요.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ElevatedButton(
+                onPressed: () async {
+                  Navigator.pop(context); // Close dialog first
+                  // Delay unfocus to override any focus restoration (150ms is enough)
+                  await Future.delayed(const Duration(milliseconds: 150));
+                  if (context.mounted) {
+                    FocusScope.of(context).unfocus();
+                  }
+
+                  ventingVM.setShareToSquare(true);
+                  setState(() => _hasConfirmedShare = true);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('확인되었습니다. 버튼을 꾹 눌러 태워주세요!')),
+                    );
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF4D00),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('네, 이해했습니다'),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () async {
+                  Navigator.pop(context); // Close dialog
+                  // Delay unfocus to override any focus restoration
+                  await Future.delayed(const Duration(milliseconds: 150));
+                  if (context.mounted) {
+                    FocusScope.of(context).unfocus();
+                  }
+
+                  ventingVM.setShareToSquare(false);
+                  setState(() => _hasConfirmedShare = false);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('나만 보는 공간에 남깁니다.')),
+                    );
+                  }
+                },
+                child: const Text(
+                  '아니요. 나만의 마음으로 남길래요.',
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ventingVM = Provider.of<VentingViewModel>(context);
     final userVM = Provider.of<UserViewModel>(context);
+
+    // ... (rest of the build method up to the button loop) ...
+    // Note: I cannot see the FULL file to replace selectively in the middle easily without context matching.
+    // I will replace the Button area in the next step or try to match a larger block.
+    // Actually, I can match the GestureDetector part easily.
 
     return Scaffold(
       appBar: AppBar(
@@ -359,6 +419,9 @@ class _HomeScreenState extends State<HomeScreen>
                 activeColor: const Color(0xFFFF4D00),
                 onChanged: (value) {
                   ventingVM.setShareToSquare(value);
+                  // If turning ON, reset confirmation so they see the dialog again next time
+                  if (value) setState(() => _hasConfirmedShare = false);
+
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(value ? '광장에 공유됩니다' : '나만 봅니다'),
@@ -457,7 +520,6 @@ class _HomeScreenState extends State<HomeScreen>
                 const SizedBox(height: 40),
 
                 // Burn Button (Keep Pressing Interaction)
-                // Burn Button (Keep Pressing Interaction)
                 Center(
                   child: Column(
                     children: [
@@ -470,95 +532,30 @@ class _HomeScreenState extends State<HomeScreen>
                       ),
                       const SizedBox(height: 20),
                       GestureDetector(
-                        onLongPressStart: (_) => _startPressing(),
-                        onLongPressEnd: (_) {
-                          _stopPressing();
-                          if (_angerLevel >= 80) {
-                            if (ventingVM.shareToSquare) {
-                              // Validation (optional now, but good to keep structure)
-                              final error = ventingVM
-                                  .validateContent(_textController.text);
-                              if (error != null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                        content: Text(error),
-                                        backgroundColor: Colors.red));
-                                return;
-                              }
-
-                              // Show Warning Dialog
-                              showDialog(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  backgroundColor: const Color(0xFF1E1E1E),
-                                  title: const Row(
-                                    children: [
-                                      Icon(Icons.warning_amber_rounded,
-                                          color: Colors.amber),
-                                      SizedBox(width: 8),
-                                      Text('잠깐만요!',
-                                          style:
-                                              TextStyle(color: Colors.white)),
-                                    ],
-                                  ),
-                                  content: const Text(
-                                    '모두가 보는 공간에 마음이 표현됩니다.\n개인이 특정되는 정보의 노출 위험이 없는지 다시 한번 확인해 주세요.',
-                                    style: TextStyle(color: Colors.white70),
-                                  ),
-                                  actions: [
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        ElevatedButton(
-                                          onPressed: () {
-                                            Navigator.pop(
-                                                context); // Close dialog
-                                            _burnEmotions(_textController.text);
-                                          },
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor:
-                                                const Color(0xFFFF4D00),
-                                            foregroundColor: Colors.white,
-                                          ),
-                                          child: const Text('네, 이해했습니다'),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        TextButton(
-                                          onPressed: () {
-                                            Navigator.pop(
-                                                context); // Close dialog
-                                            // Switch to private and burn
-                                            ventingVM.setShareToSquare(false);
-                                            _burnEmotions(_textController.text);
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
-                                              const SnackBar(
-                                                  content:
-                                                      Text('나만 보는 공간에 남깁니다.')),
-                                            );
-                                          },
-                                          child: const Text(
-                                            '아니요. 나만의 마음으로 남길래요.',
-                                            style: TextStyle(
-                                                color: Colors.grey,
-                                                fontSize: 12),
-                                          ),
-                                        ),
-                                      ],
-                                    )
-                                  ],
-                                ),
-                              );
-                            } else {
-                              // Just burn if private
-                              _burnEmotions(_textController.text);
-                            }
+                        onLongPressStart: (_) {
+                          if (ventingVM.shareToSquare && !_hasConfirmedShare) {
+                            // Intercept: Show safety dialog immediately
+                            _showSafetyDialog(context, ventingVM);
                           } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content: Text('감정을 더 모아서 꾹 눌러주세요! (80% 이상)')),
-                            );
+                            // Proceed as normal
+                            _startPressing();
+                          }
+                        },
+                        onLongPressEnd: (_) {
+                          // If we never started pressing (because of dialog), this shouldn't matter much
+                          // but we should ensure we stop cleanly.
+                          if (_isPressing) {
+                            _stopPressing();
+                            if (_angerLevel >= 80) {
+                              // Just burn, no more dialogs here since we handled safety check at start
+                              _burnEmotions(_textController.text);
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content:
+                                        Text('감정을 더 모아서 꾹 눌러주세요! (80% 이상)')),
+                              );
+                            }
                           }
                         },
                         child: AnimatedContainer(

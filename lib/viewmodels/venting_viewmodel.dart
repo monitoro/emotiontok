@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/ai_service.dart';
 import '../viewmodels/user_viewmodel.dart';
 
@@ -11,6 +13,7 @@ class PublicComment {
   final DateTime timestamp;
   int supportCount;
   int comfortCount;
+  final List<PublicComment> replies;
 
   PublicComment({
     required this.nickname,
@@ -18,7 +21,33 @@ class PublicComment {
     required this.timestamp,
     this.supportCount = 0,
     this.comfortCount = 0,
-  });
+    List<PublicComment>? replies,
+  }) : replies = replies ?? [];
+
+  Map<String, dynamic> toMap() {
+    return {
+      'nickname': nickname,
+      'content': content,
+      'timestamp': timestamp.toIso8601String(),
+      'supportCount': supportCount,
+      'comfortCount': comfortCount,
+      'replies': replies.map((r) => r.toMap()).toList(),
+    };
+  }
+
+  factory PublicComment.fromMap(Map<String, dynamic> map) {
+    return PublicComment(
+      nickname: map['nickname'],
+      content: map['content'],
+      timestamp: DateTime.parse(map['timestamp']),
+      supportCount: map['supportCount'] ?? 0,
+      comfortCount: map['comfortCount'] ?? 0,
+      replies: map['replies'] != null
+          ? List<PublicComment>.from(
+              (map['replies'] as List).map((x) => PublicComment.fromMap(x)))
+          : null,
+    );
+  }
 }
 
 class PublicPost {
@@ -33,6 +62,7 @@ class PublicPost {
   int comfortCount;
   final List<PublicComment> comments;
   final List<String> tags;
+  final String fontName;
 
   PublicPost({
     required this.id,
@@ -46,7 +76,47 @@ class PublicPost {
     this.comfortCount = 0,
     List<PublicComment>? comments,
     this.tags = const [],
+    this.fontName = '나눔 펜 (손글씨)',
   }) : comments = comments ?? [];
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'authorNickname': authorNickname,
+      'content': content,
+      'angerLevel': angerLevel,
+      'timestamp': timestamp.toIso8601String(),
+      'lastModified': lastModified?.toIso8601String(),
+      'imagePath': imagePath,
+      'supportCount': supportCount,
+      'comfortCount': comfortCount,
+      'comments': comments.map((c) => c.toMap()).toList(),
+      'tags': tags,
+      'fontName': fontName,
+    };
+  }
+
+  factory PublicPost.fromMap(Map<String, dynamic> map) {
+    return PublicPost(
+      id: map['id'],
+      authorNickname: map['authorNickname'],
+      content: map['content'],
+      angerLevel: map['angerLevel'],
+      timestamp: DateTime.parse(map['timestamp']),
+      lastModified: map['lastModified'] != null
+          ? DateTime.parse(map['lastModified'])
+          : null,
+      imagePath: map['imagePath'],
+      supportCount: map['supportCount'] ?? 0,
+      comfortCount: map['comfortCount'] ?? 0,
+      comments: map['comments'] != null
+          ? List<PublicComment>.from(
+              (map['comments'] as List).map((x) => PublicComment.fromMap(x)))
+          : null,
+      tags: List<String>.from(map['tags'] ?? []),
+      fontName: map['fontName'] ?? '나눔 펜 (손글씨)',
+    );
+  }
 }
 
 class PrivatePost {
@@ -57,6 +127,7 @@ class PrivatePost {
   final String? imagePath;
   final String? aiResponse;
   final List<String> tags;
+  final bool isPublic;
 
   PrivatePost({
     required this.id,
@@ -66,7 +137,34 @@ class PrivatePost {
     this.imagePath,
     this.aiResponse,
     this.tags = const [],
+    this.isPublic = false,
   });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'content': content,
+      'angerLevel': angerLevel,
+      'timestamp': timestamp.toIso8601String(),
+      'imagePath': imagePath,
+      'aiResponse': aiResponse,
+      'tags': tags,
+      'isPublic': isPublic,
+    };
+  }
+
+  factory PrivatePost.fromMap(Map<String, dynamic> map) {
+    return PrivatePost(
+      id: map['id'],
+      content: map['content'],
+      angerLevel: map['angerLevel'],
+      timestamp: DateTime.parse(map['timestamp']),
+      imagePath: map['imagePath'],
+      aiResponse: map['aiResponse'],
+      tags: List<String>.from(map['tags'] ?? []),
+      isPublic: map['isPublic'] ?? false,
+    );
+  }
 }
 
 enum SquareSortType { latest, firewood, water, comments }
@@ -109,6 +207,48 @@ class VentingViewModel with ChangeNotifier {
 
   final List<PrivatePost> _privateHistory = [];
   DateTime _selectedCalendarDate = DateTime.now();
+
+  VentingViewModel() {
+    _loadPrivateHistory();
+    _loadPublicPosts();
+  }
+
+  Future<void> _loadPrivateHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? historyJson = prefs.getString('private_history');
+    if (historyJson != null) {
+      final List<dynamic> decoded = jsonDecode(historyJson);
+      _privateHistory.clear();
+      _privateHistory
+          .addAll(decoded.map((e) => PrivatePost.fromMap(e)).toList());
+      notifyListeners();
+    }
+  }
+
+  Future<void> _savePrivateHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String encoded =
+        jsonEncode(_privateHistory.map((p) => p.toMap()).toList());
+    await prefs.setString('private_history', encoded);
+  }
+
+  Future<void> _loadPublicPosts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? postsJson = prefs.getString('public_posts');
+    if (postsJson != null) {
+      final List<dynamic> decoded = jsonDecode(postsJson);
+      _publicPosts.clear();
+      _publicPosts.addAll(decoded.map((e) => PublicPost.fromMap(e)).toList());
+      notifyListeners();
+    }
+  }
+
+  Future<void> _savePublicPosts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String encoded =
+        jsonEncode(_publicPosts.map((p) => p.toMap()).toList());
+    await prefs.setString('public_posts', encoded);
+  }
 
   VentingMode get currentMode => _currentMode;
   bool get isBurning => _isBurning;
@@ -248,6 +388,7 @@ class VentingViewModel with ChangeNotifier {
     if (index != -1) {
       _publicPosts[index].supportCount++;
       _firewoodCount--;
+      _savePublicPosts();
       notifyListeners();
       return true;
     }
@@ -260,6 +401,7 @@ class VentingViewModel with ChangeNotifier {
     if (index != -1) {
       _publicPosts[index].comfortCount++;
       _waterCount--;
+      _savePublicPosts();
       notifyListeners();
       return true;
     }
@@ -275,6 +417,7 @@ class VentingViewModel with ChangeNotifier {
                 content: content,
                 timestamp: DateTime.now()),
           );
+      _savePublicPosts();
       notifyListeners();
     }
   }
@@ -287,33 +430,41 @@ class VentingViewModel with ChangeNotifier {
   void finishBurning(Persona persona, String text, UserViewModel userVM,
       {double? angerLevel}) async {
     final extractedTags = _extractTags(text);
+    final now = DateTime.now();
+    final postId = now.millisecondsSinceEpoch.toString();
+
+    PublicPost? newPublicPost;
 
     if (_shareToSquare) {
-      _publicPosts.insert(
-        0,
-        PublicPost(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          authorNickname: userVM.nickname ?? '익명',
-          content: text,
-          angerLevel: angerLevel ?? 50,
-          timestamp: DateTime.now(),
-          imagePath: _pickedImagePath,
-          tags: extractedTags,
-        ),
+      newPublicPost = PublicPost(
+        id: postId,
+        authorNickname: userVM.nickname ?? '익명',
+        content: text,
+        angerLevel: angerLevel ?? 50,
+        timestamp: now,
+        imagePath: _pickedImagePath,
+        tags: extractedTags,
+        fontName: userVM.selectedFont,
       );
+      _publicPosts.insert(0, newPublicPost);
+      _savePublicPosts();
     }
+
     _privateHistory.insert(
       0,
       PrivatePost(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        id: postId,
         content: text,
         angerLevel: angerLevel ?? 50,
-        timestamp: DateTime.now(),
+        timestamp: now,
         imagePath: _pickedImagePath,
         aiResponse: null,
         tags: extractedTags,
+        isPublic: _shareToSquare,
       ),
     );
+    _savePrivateHistory(); // Save initial post
+
     _isBurning = false;
     _todaysBurnCount++;
     _pickedImagePath = null;
@@ -325,6 +476,7 @@ class VentingViewModel with ChangeNotifier {
     final response = await AIService.getResponse(persona, text);
     _lastAiResponse = response;
 
+    // Update private history with AI response
     final lastPrivateIndex = _privateHistory
         .indexWhere((p) => p.aiResponse == null && p.content == text);
     if (lastPrivateIndex != -1) {
@@ -336,9 +488,38 @@ class VentingViewModel with ChangeNotifier {
         imagePath: _privateHistory[lastPrivateIndex].imagePath,
         aiResponse: response,
         tags: extractedTags,
+        isPublic: _privateHistory[lastPrivateIndex].isPublic,
       );
+      _savePrivateHistory(); // Save updated post with AI response
+    }
+
+    // Add AI Response as a comment to the captured public post
+    if (newPublicPost != null && response.isNotEmpty) {
+      newPublicPost.comments.insert(
+        0,
+        PublicComment(
+          nickname: '마음이 (${_getPersonaName(persona)})',
+          content: response,
+          timestamp: DateTime.now(),
+        ),
+      );
+      _savePublicPosts();
+      notifyListeners();
     }
     notifyListeners();
+  }
+
+  String _getPersonaName(Persona persona) {
+    switch (persona) {
+      case Persona.fighter:
+        return '불사조';
+      case Persona.empathy:
+        return '천사';
+      case Persona.factBomb:
+        return '분석가';
+      case Persona.humor:
+        return '광대';
+    }
   }
 
   List<String> _extractTags(String content) {
@@ -369,12 +550,14 @@ class VentingViewModel with ChangeNotifier {
     if (index != -1) {
       _publicPosts[index].content = newContent;
       _publicPosts[index].lastModified = DateTime.now();
+      _savePublicPosts();
       notifyListeners();
     }
   }
 
   void deletePost(String postId) {
     _publicPosts.removeWhere((p) => p.id == postId);
+    _savePublicPosts();
     notifyListeners();
   }
 
@@ -385,6 +568,7 @@ class VentingViewModel with ChangeNotifier {
         commentIndex < _publicPosts[postIndex].comments.length) {
       _publicPosts[postIndex].comments[commentIndex].supportCount++;
       _firewoodCount--;
+      _savePublicPosts();
       notifyListeners();
       return true;
     }
@@ -398,10 +582,36 @@ class VentingViewModel with ChangeNotifier {
         commentIndex < _publicPosts[postIndex].comments.length) {
       _publicPosts[postIndex].comments[commentIndex].comfortCount++;
       _waterCount--;
+      _savePublicPosts();
       notifyListeners();
       return true;
     }
     return false;
+  }
+
+  void addReply(
+      String postId, int commentIndex, String nickname, String content) {
+    final postIndex = _publicPosts.indexWhere((p) => p.id == postId);
+    if (postIndex != -1 &&
+        commentIndex < _publicPosts[postIndex].comments.length) {
+      _publicPosts[postIndex].comments[commentIndex].replies.add(
+            PublicComment(
+              nickname: nickname,
+              content: content,
+              timestamp: DateTime.now(),
+            ),
+          );
+      _savePublicPosts();
+      notifyListeners();
+    }
+  }
+
+  PublicPost? getPublicPost(String id) {
+    try {
+      return _publicPosts.firstWhere((p) => p.id == id);
+    } catch (e) {
+      return null;
+    }
   }
 
   void clearAiResponse() {

@@ -31,15 +31,41 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _navigateToNext() async {
-    await Future.delayed(const Duration(seconds: 3));
-    if (!mounted) return;
-
     final userVM = Provider.of<UserViewModel>(context, listen: false);
 
-    if (userVM.isLoggedIn) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
-      );
+    // Run wait time and data loading in parallel
+    await Future.wait([
+      Future.delayed(const Duration(seconds: 3)),
+      userVM.loadUserData(),
+    ]);
+
+    if (!mounted) return;
+
+    // Auto-login check
+    if (userVM.nickname != null) {
+      bool authenticated = true;
+      if (userVM.isBiometricEnabled) {
+        authenticated = await userVM.authenticate();
+      }
+
+      if (authenticated) {
+        userVM.login(); // Set valid session state
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+        );
+      } else {
+        // Auth failed or canceled
+        // For now, we can show a retry dialog or just exit.
+        // Let's show a simple dialog and navigate to onboarding or exit?
+        // Actually, just staying on splash might be stuck.
+        // Let's Retry.
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('생체 인증에 실패했습니다. 앱을 재실행해주세요.')),
+          );
+        }
+      }
     } else {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const OnboardingScreen()),

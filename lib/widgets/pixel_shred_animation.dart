@@ -95,7 +95,7 @@ class _PixelShredAnimationState extends State<PixelShredAnimation>
 
       // Play Shred SFX
       try {
-        await _sfxPlayer.play(AssetSource('sounds/pixel_shred.mp3'));
+        await _sfxPlayer.play(AssetSource('sounds/explosion.mp3'));
       } catch (e) {
         // debugPrint('Shred SFX failed: $e');
       }

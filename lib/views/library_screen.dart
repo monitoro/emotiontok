@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:emotiontok/views/post_detail_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../viewmodels/venting_viewmodel.dart';
@@ -273,6 +274,46 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                 ),
                               ),
                             ],
+                          ),
+                        ),
+                      ],
+                      if (post.isPublic) ...[
+                        const SizedBox(height: 12),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: () {
+                              final publicPost =
+                                  ventingVM.getPublicPost(post.id);
+                              if (publicPost != null) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        PostDetailScreen(post: publicPost),
+                                  ),
+                                );
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content:
+                                          Text('광장에서 삭제되었거나 찾을 수 없는 글입니다.')),
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.public,
+                                size: 16, color: Color(0xFFFF4D00)),
+                            label: const Text('광장에서 보기',
+                                style: TextStyle(
+                                    color: Color(0xFFFF4D00), fontSize: 12)),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                              backgroundColor:
+                                  const Color(0xFFFF4D00).withOpacity(0.1),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8)),
+                            ),
                           ),
                         ),
                       ],

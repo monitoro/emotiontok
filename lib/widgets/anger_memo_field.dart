@@ -45,9 +45,12 @@ class _AngerMemoFieldState extends State<AngerMemoField> {
     });
   }
 
+  final FocusNode _focusNode = FocusNode();
+
   @override
   void dispose() {
     _decayTimer?.cancel();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -91,8 +94,8 @@ class _AngerMemoFieldState extends State<AngerMemoField> {
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(2),
             topRight: Radius.circular(2),
-            bottomLeft: Radius.circular(20), // Peeling effect
-            bottomRight: Radius.circular(2),
+            bottomLeft: Radius.circular(20), // Rounded bottom left
+            bottomRight: Radius.circular(20), // Rounded bottom right
           ),
           boxShadow: [
             BoxShadow(
@@ -133,8 +136,10 @@ class _AngerMemoFieldState extends State<AngerMemoField> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
               child: TextField(
+                focusNode: _focusNode,
                 controller: widget.controller,
                 onChanged: _onTextChanged,
+                autofocus: false, // Prevent auto-focus
                 maxLines: null,
                 style: AppFonts.getFont(
                   userVM.selectedFont,

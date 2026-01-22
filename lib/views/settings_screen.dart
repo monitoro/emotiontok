@@ -58,6 +58,13 @@ class SettingsScreen extends StatelessWidget {
                 subtitle: 'PIN 번호를 변경합니다',
                 onTap: () => _showPinDialog(context, userVM),
               ),
+              _buildSwitchTile(
+                icon: Icons.fingerprint,
+                title: '생체 인식 잠금',
+                subtitle: '앱 실행 시 생체 인식을 사용합니다',
+                value: userVM.isBiometricEnabled,
+                onChanged: (value) => userVM.toggleBiometric(value),
+              ),
             ],
           ),
           const Divider(color: Colors.white10),

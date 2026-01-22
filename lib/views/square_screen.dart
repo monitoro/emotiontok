@@ -9,6 +9,8 @@ import 'post_detail_screen.dart';
 import '../widgets/point_display.dart';
 import 'package:vibration/vibration.dart';
 
+import '../utils/app_fonts.dart';
+
 class SquareScreen extends StatelessWidget {
   const SquareScreen({super.key});
 
@@ -171,10 +173,14 @@ class SquareScreen extends StatelessWidget {
                                       Expanded(
                                         child: Text(
                                           post.content,
-                                          style: const TextStyle(
-                                              fontSize: 14,
-                                              height: 1.3), // 폰트, 행간 줄임
-                                          maxLines: 2, // 3 -> 2
+                                          style: AppFonts.getFont(
+                                            post.fontName,
+                                            textStyle: const TextStyle(
+                                                fontSize: 14,
+                                                height: 1.3,
+                                                color: Colors.white),
+                                          ),
+                                          maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
