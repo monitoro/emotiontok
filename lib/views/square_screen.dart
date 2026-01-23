@@ -96,6 +96,13 @@ class SquareScreen extends StatelessWidget {
                                         PostDetailScreen(post: post)),
                               );
                             },
+                            onLongPress: () {
+                              // Can't block/report myself
+                              if (post.authorId != userVM.userId) {
+                                _showReportBlockOption(
+                                    context, post, ventingVM);
+                              }
+                            },
                             child: Container(
                               margin:
                                   const EdgeInsets.only(bottom: 6), // 8 -> 6

@@ -66,7 +66,46 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final userVM = Provider.of<UserViewModel>(context, listen: false);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('감정 상세')),
+      appBar: AppBar(
+        title: const Text('감정 상세'),
+        actions: [
+          // Only show report/block for posts not authored by current user
+          if (displayPost.authorId != userVM.userId)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (value) {
+                if (value == 'report') {
+                  _showReportDialog(context, displayPost, ventingVM, userVM);
+                } else if (value == 'block') {
+                  _confirmBlock(context, displayPost.authorId, ventingVM);
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'report',
+                  child: Row(
+                    children: [
+                      Icon(Icons.report_problem,
+                          color: Colors.redAccent, size: 20),
+                      SizedBox(width: 8),
+                      Text('신고하기'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'block',
+                  child: Row(
+                    children: [
+                      Icon(Icons.block, color: Colors.grey, size: 20),
+                      SizedBox(width: 8),
+                      Text('이 사용자 차단'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
       body: Column(
         children: [
           Expanded(
@@ -210,68 +249,287 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       BuildContext context, PublicComment comment, PublicPost post,
       {required bool isReply}) {
     final ventingVM = Provider.of<VentingViewModel>(context, listen: false);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                if (isReply)
-                  const Icon(Icons.subdirectory_arrow_right,
-                      size: 16, color: Colors.grey),
-                if (isReply) const SizedBox(width: 4),
-                Text(comment.nickname,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: Colors.orange)),
-                const SizedBox(width: 8),
-                Text(DateFormat('HH:mm').format(comment.timestamp),
-                    style: const TextStyle(color: Colors.grey, fontSize: 10)),
-                if (comment.authorId == post.authorId) ...[
-                  const SizedBox(width: 4),
-                  const Text('(작성자)',
-                      style: TextStyle(
-                          color: Color(0xFF2196F3), // Blue
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold)),
+    final userVM = Provider.of<UserViewModel>(context, listen: false);
+
+    return GestureDetector(
+      onLongPress: () {
+        if (comment.authorId != userVM.userId) {
+          _showCommentReportDialog(context, comment, post, ventingVM, userVM);
+        }
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  if (isReply)
+                    const Icon(Icons.subdirectory_arrow_right,
+                        size: 16, color: Colors.grey),
+                  if (isReply) const SizedBox(width: 4),
+                  Text(comment.nickname,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: Colors.orange)),
+                  const SizedBox(width: 8),
+                  Text(DateFormat('HH:mm').format(comment.timestamp),
+                      style: const TextStyle(color: Colors.grey, fontSize: 10)),
+                  if (comment.authorId == post.authorId) ...[
+                    const SizedBox(width: 4),
+                    const Text('(작성자)',
+                        style: TextStyle(
+                            color: Color(0xFF2196F3), // Blue
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold)),
+                  ],
                 ],
+              ),
+              Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => _enableReplyMode(comment.id, comment.nickname),
+                    child: const Text('답글 달기',
+                        style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  ),
+                  const SizedBox(width: 12),
+                  _CommentInteraction(
+                    icon: Icons.fireplace,
+                    count: comment.supportCount,
+                    color: Colors.orange,
+                    onTap: () =>
+                        ventingVM.addFirewoodToComment(post.id, comment.id),
+                  ),
+                  const SizedBox(width: 8),
+                  _CommentInteraction(
+                    icon: Icons.water_drop,
+                    count: comment.comfortCount,
+                    color: Colors.blue,
+                    onTap: () =>
+                        ventingVM.addWaterToComment(post.id, comment.id),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Padding(
+            padding: EdgeInsets.only(left: isReply ? 20.0 : 0.0),
+            child: Text(comment.content, style: const TextStyle(fontSize: 14)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showReportDialog(BuildContext context, PublicPost post,
+      VentingViewModel ventingVM, UserViewModel userVM) {
+    String selectedReason = '스팸/부적절한 홍보';
+    final List<String> reasons = [
+      '스팸/부적절한 홍보',
+      '욕설/비하 발언',
+      '음란물/유해한 정보',
+      '개인정보 노출',
+      '기타'
+    ];
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1E1E1E),
+              title: const Text('게시글 신고하기'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('신고 사유를 선택해주세요.',
+                      style: TextStyle(color: Colors.white70)),
+                  const SizedBox(height: 16),
+                  DropdownButton<String>(
+                    value: selectedReason,
+                    dropdownColor: const Color(0xFF2A2A2A),
+                    isExpanded: true,
+                    items: reasons.map((String reason) {
+                      return DropdownMenuItem<String>(
+                        value: reason,
+                        child: Text(reason,
+                            style: const TextStyle(color: Colors.white)),
+                      );
+                    }).toList(),
+                    onChanged: (String? newValue) {
+                      setState(() {
+                        selectedReason = newValue!;
+                      });
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('취소'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    ventingVM.reportPost(
+                        post.id, selectedReason, userVM.userId ?? 'anonymous');
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('신고가 접수되었습니다.')),
+                    );
+                  },
+                  child: const Text('신고', style: TextStyle(color: Colors.red)),
+                ),
               ],
-            ),
-            Row(
-              children: [
-                GestureDetector(
-                  onTap: () => _enableReplyMode(comment.id, comment.nickname),
-                  child: const Text('답글 달기',
-                      style: TextStyle(color: Colors.grey, fontSize: 12)),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _confirmBlock(
+      BuildContext context, String userId, VentingViewModel ventingVM) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: const Text('차단하기'),
+        content: const Text('이 사용자를 차단하시겠습니까?\n앞으로 이 사용자가 쓴 글이 보이지 않습니다.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context), child: const Text('취소')),
+          TextButton(
+            onPressed: () {
+              ventingVM.blockUser(userId);
+              Navigator.pop(context);
+              Navigator.pop(context); // Close detail screen as well
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('사용자를 차단했습니다.')),
+              );
+            },
+            child: const Text('차단', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCommentReportDialog(BuildContext context, PublicComment comment,
+      PublicPost post, VentingViewModel ventingVM, UserViewModel userVM) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E1E1E),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading:
+                    const Icon(Icons.report_problem, color: Colors.redAccent),
+                title: const Text('댓글 신고하기',
+                    style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showReportDialogForComment(
+                      context, comment, post, ventingVM, userVM);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.block, color: Colors.grey),
+                title: const Text('이 사용자 차단하기',
+                    style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _confirmBlock(context, comment.authorId, ventingVM);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showReportDialogForComment(BuildContext context, PublicComment comment,
+      PublicPost post, VentingViewModel ventingVM, UserViewModel userVM) {
+    String selectedReason = '스팸/부적절한 홍보';
+    final List<String> reasons = [
+      '스팸/부적절한 홍보',
+      '욕설/비하 발언',
+      '음란물/유해한 정보',
+      '개인정보 노출',
+      '기타'
+    ];
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1E1E1E),
+              title: const Text('댓글 신고하기'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('"${comment.content}"',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  const SizedBox(height: 8),
+                  const Text('신고 사유를 선택해주세요.',
+                      style: TextStyle(color: Colors.white70)),
+                  const SizedBox(height: 16),
+                  DropdownButton<String>(
+                    value: selectedReason,
+                    dropdownColor: const Color(0xFF2A2A2A),
+                    isExpanded: true,
+                    items: reasons.map((String reason) {
+                      return DropdownMenuItem<String>(
+                        value: reason,
+                        child: Text(reason,
+                            style: const TextStyle(color: Colors.white)),
+                      );
+                    }).toList(),
+                    onChanged: (String? newValue) {
+                      setState(() {
+                        selectedReason = newValue!;
+                      });
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('취소'),
                 ),
-                const SizedBox(width: 12),
-                _CommentInteraction(
-                  icon: Icons.fireplace,
-                  count: comment.supportCount,
-                  color: Colors.orange,
-                  onTap: () =>
-                      ventingVM.addFirewoodToComment(post.id, comment.id),
-                ),
-                const SizedBox(width: 8),
-                _CommentInteraction(
-                  icon: Icons.water_drop,
-                  count: comment.comfortCount,
-                  color: Colors.blue,
-                  onTap: () => ventingVM.addWaterToComment(post.id, comment.id),
+                TextButton(
+                  onPressed: () {
+                    ventingVM.reportPost(
+                        post.id,
+                        "[댓글 신고: ${comment.content}] $selectedReason",
+                        userVM.userId ?? 'anonymous');
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('댓글 신고가 접수되었습니다.')),
+                    );
+                  },
+                  child: const Text('신고', style: TextStyle(color: Colors.red)),
                 ),
               ],
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Padding(
-          padding: EdgeInsets.only(left: isReply ? 20.0 : 0.0),
-          child: Text(comment.content, style: const TextStyle(fontSize: 14)),
-        ),
-      ],
+            );
+          },
+        );
+      },
     );
   }
 

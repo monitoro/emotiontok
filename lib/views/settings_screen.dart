@@ -4,6 +4,7 @@ import '../viewmodels/user_viewmodel.dart';
 import '../viewmodels/venting_viewmodel.dart';
 import '../utils/app_fonts.dart';
 import '../services/data_export_service.dart';
+import 'admin_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -170,6 +171,23 @@ class SettingsScreen extends StatelessWidget {
               ),
             ],
           ),
+          const Divider(color: Colors.white10),
+          _buildSection(
+            title: '관리자',
+            children: [
+              _buildSettingTile(
+                icon: Icons.admin_panel_settings,
+                title: '관리자 모드',
+                subtitle: '시드 데이터 생성 및 관리',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AdminScreen()),
+                ),
+                textColor: Colors.orange,
+              ),
+            ],
+          ),
+          const SizedBox(height: 32),
         ],
       ),
     );

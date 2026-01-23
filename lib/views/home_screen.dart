@@ -160,8 +160,14 @@ class _HomeScreenState extends State<HomeScreen>
           });
 
           // Show AI response dialog
-          if (context.mounted) {
+          // Show AI response dialog ONLY if NOT sharing to square
+          if (context.mounted && !ventingVM.shareToSquare) {
             _showAiResponseDialog(context, ventingVM);
+          } else {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context)
+                  .showSnackBar(const SnackBar(content: Text('광장에 공유되었습니다.')));
+            }
           }
         },
         child: Material(

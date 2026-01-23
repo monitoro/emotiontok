@@ -293,6 +293,27 @@ class VentingViewModel with ChangeNotifier {
     return _blockedUserIds.contains(userId);
   }
 
+  // Admin / Settings functionality
+  Set<String> get blockedUserIds => _blockedUserIds;
+
+  Future<void> unblockUser(String userId) async {
+    if (_blockedUserIds.contains(userId)) {
+      _blockedUserIds.remove(userId);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('blocked_user_ids', _blockedUserIds.toList());
+      notifyListeners();
+    }
+  }
+
+  Future<void> unblockAllUsers() async {
+    if (_blockedUserIds.isNotEmpty) {
+      _blockedUserIds.clear();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('blocked_user_ids');
+      notifyListeners();
+    }
+  }
+
   Future<void> reportPost(
       String postId, String reason, String reporterId) async {
     try {
@@ -328,12 +349,23 @@ class VentingViewModel with ChangeNotifier {
 
   void _subscribeToPosts() {
     _firestore.collection('posts').snapshots().listen((snapshot) {
-      _publicPosts = snapshot.docs.map((doc) {
-        final data = doc.data();
-        data['id'] = doc.id; // Ensure ID matches Document ID
-        return PublicPost.fromMap(data);
-      }).toList();
+      print(
+          'DEBUG: Firestore snapshot received. Docs count: ${snapshot.docs.length}');
+      final List<PublicPost> posts = [];
+      for (var doc in snapshot.docs) {
+        try {
+          final data = doc.data();
+          data['id'] = doc.id;
+          posts.add(PublicPost.fromMap(data));
+        } catch (e) {
+          print('Error parsing post ${doc.id}: $e');
+        }
+      }
+      _publicPosts = posts;
+      print('DEBUG: Parsed public posts count: ${_publicPosts.length}');
       notifyListeners();
+    }, onError: (e) {
+      print('Firestore stream error: $e');
     });
   }
 
@@ -400,6 +432,8 @@ class VentingViewModel with ChangeNotifier {
 
   List<PublicPost> get publicPosts {
     List<PublicPost> filteredList = _publicPosts;
+    print(
+        'DEBUG: publicPosts getter called. Total: ${_publicPosts.length}, Filter: Period=$_filterPeriod, Tag=$_selectedTag, Blocked=${_blockedUserIds.length}');
 
     // Filter by tag
     if (_selectedTag != null && _selectedTag != '전체') {
@@ -409,9 +443,14 @@ class VentingViewModel with ChangeNotifier {
 
     // Filter blocked users
     if (_blockedUserIds.isNotEmpty) {
-      filteredList = filteredList
-          .where((p) => !_blockedUserIds.contains(p.authorId))
-          .toList();
+      print('DEBUG: Blocking users: $_blockedUserIds');
+      filteredList = filteredList.where((p) {
+        final isBlocked = _blockedUserIds.contains(p.authorId);
+        if (isBlocked) {
+          print('DEBUG: Post ${p.id} by ${p.authorId} blocked.');
+        }
+        return !isBlocked;
+      }).toList();
     }
 
     // Filter by period
@@ -435,6 +474,7 @@ class VentingViewModel with ChangeNotifier {
           .where((p) => now.difference(p.timestamp) < duration)
           .toList();
     }
+    print('DEBUG: Filtered list count: ${filteredList.length}');
     final List<PublicPost> sortedList = List.from(filteredList);
     switch (_sortType) {
       case SquareSortType.latest:
@@ -592,57 +632,30 @@ class VentingViewModel with ChangeNotifier {
     _waterCount++;
     notifyListeners();
 
-    final response = await AIService.getResponse(persona, text);
-    _lastAiResponse = response;
+    // AI 위로는 광장 공유하지 않는 글에만 제공
+    if (!_shareToSquare) {
+      final response = await AIService.getResponse(persona, text);
+      _lastAiResponse = response;
 
-    // Update private history with AI response
-    final lastPrivateIndex = _privateHistory
-        .indexWhere((p) => p.aiResponse == null && p.content == text);
-    if (lastPrivateIndex != -1) {
-      _privateHistory[lastPrivateIndex] = PrivatePost(
-        id: _privateHistory[lastPrivateIndex].id,
-        content: _privateHistory[lastPrivateIndex].content,
-        angerLevel: _privateHistory[lastPrivateIndex].angerLevel,
-        timestamp: _privateHistory[lastPrivateIndex].timestamp,
-        imagePath: _privateHistory[lastPrivateIndex].imagePath,
-        aiResponse: response,
-        tags: extractedTags,
-        isPublic: _privateHistory[lastPrivateIndex].isPublic,
-      );
-      _savePrivateHistory(); // Save updated post with AI response
-    }
-
-    // Add AI Response as a comment to the captured public post
-    if (_shareToSquare && newPublicPost != null && response.isNotEmpty) {
-      final aiComment = PublicComment(
-        authorId: 'ai_helper', // AI ID
-        nickname: '마음이 (${_getPersonaName(persona)})',
-        content: response,
-        timestamp: DateTime.now(),
-      );
-
-      try {
-        await _firestore.collection('posts').doc(postId).update({
-          'comments': FieldValue.arrayUnion([aiComment.toMap()]),
-        });
-      } catch (e) {
-        print("Error adding AI comment: $e");
+      // Update private history with AI response
+      final lastPrivateIndex = _privateHistory
+          .indexWhere((p) => p.aiResponse == null && p.content == text);
+      if (lastPrivateIndex != -1) {
+        _privateHistory[lastPrivateIndex] = PrivatePost(
+          id: _privateHistory[lastPrivateIndex].id,
+          content: _privateHistory[lastPrivateIndex].content,
+          angerLevel: _privateHistory[lastPrivateIndex].angerLevel,
+          timestamp: _privateHistory[lastPrivateIndex].timestamp,
+          imagePath: _privateHistory[lastPrivateIndex].imagePath,
+          aiResponse: response,
+          tags: extractedTags,
+          isPublic: _privateHistory[lastPrivateIndex].isPublic,
+        );
+        _savePrivateHistory(); // Save updated post with AI response
       }
     }
-    notifyListeners();
-  }
 
-  String _getPersonaName(Persona persona) {
-    switch (persona) {
-      case Persona.fighter:
-        return '불사조';
-      case Persona.empathy:
-        return '천사';
-      case Persona.factBomb:
-        return '분석가';
-      case Persona.humor:
-        return '광대';
-    }
+    notifyListeners();
   }
 
   static const Map<String, List<String>> keywordMap = {
@@ -826,7 +839,6 @@ class VentingViewModel with ChangeNotifier {
   }
 
   void clearAiResponse() {
-    _lastAiResponse = null;
     notifyListeners();
   }
 }

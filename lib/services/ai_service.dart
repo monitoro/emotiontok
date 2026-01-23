@@ -37,4 +37,32 @@ class AIService {
         return "$baseInstruction\nRole: You are a witty jester. Try to make the user laugh about the situation. Use satire, jokes, or funny comparisons to lighten the mood. Use emojis like 😂, 🤣, 🤪.";
     }
   }
+
+  static Future<String> getSeedContent(String topic, String emotion) async {
+    try {
+      final model = GenerativeModel(
+        model: 'gemini-2.5-flash',
+        apiKey: ApiConfig.geminiApiKey,
+      );
+
+      final prompt = [
+        Content.text('''
+You are a creative writer generating fake user posts for an anonymous emotional venting app called 'Burn It'.
+Generate a short, realistic, and emotional post in Korean.
+Topic: $topic
+Emotion: $emotion
+Length: 30-80 characters.
+Style: Casual, internet slang allowed but not excessive, authentic, anonymous venting.
+Output only the post content, no quotes or extra text.
+''')
+      ];
+
+      final response = await model.generateContent(prompt);
+      return response.text?.trim() ?? "오늘 하루도 정말 쉽지 않네...";
+    } catch (e, stackTrace) {
+      print('Error in getSeedContent: $e');
+      print(stackTrace);
+      return "그냥 아무 생각 없이 멍때리고 싶다.";
+    }
+  }
 }
