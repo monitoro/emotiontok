@@ -11,6 +11,7 @@ import '../widgets/point_display.dart';
 import '../widgets/pixel_shred_animation.dart';
 import '../painter/graph_paper_painter.dart';
 import '../widgets/anger_memo_field.dart';
+import '../widgets/ai_chat_dialog.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -29,15 +30,38 @@ class _HomeScreenState extends State<HomeScreen>
   bool _isPressing = false;
   late AnimationController _pulseController;
   String _selectedTag = '자동';
+  late String _selectedPersonaStr; // Initialized in initState
 
   late AudioPlayer _sfxPlayer;
   late AudioPlayer _risingSfxPlayer;
+
+  // Helper to get actual persona
+  Persona _getActualPersona() {
+    if (_selectedPersonaStr == '랜덤') {
+      final options = [Persona.fighter, Persona.humor, Persona.factBomb];
+      return options[DateTime.now().millisecond % options.length];
+    }
+    switch (_selectedPersonaStr) {
+      case '전투':
+        return Persona.fighter;
+      case '유머':
+        return Persona.humor;
+      case '팩폭':
+        return Persona.factBomb;
+      default:
+        return Persona.fighter; // Default to Fighter as requested fallback
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     _sfxPlayer = AudioPlayer();
     _risingSfxPlayer = AudioPlayer();
+
+    // Initialize persona from User Settings
+    final userVM = Provider.of<UserViewModel>(context, listen: false);
+    _selectedPersonaStr = userVM.defaultPersonaStr;
 
     _risingSfxPlayer.setReleaseMode(ReleaseMode.loop); // Loop for rising effect
 
@@ -101,30 +125,25 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  void _burnEmotions(String text) {
+  void _handleBurn() {
+    final text = _textController.text.trim();
     if (text.isEmpty) return;
 
     final ventingVM = Provider.of<VentingViewModel>(context, listen: false);
     final userVM = Provider.of<UserViewModel>(context, listen: false);
 
-    // 1. Start burning animation
-    ventingVM.startBurning();
+    // 1. Calculate animation duration
+    // Standard: 3 seconds for full text (100 chars), min 1.5s, max 4s
+    double calculatedDelaySeconds = (text.length / 30).clamp(1.5, 4.0);
 
-    // Play burning SFX if enabled
-    if (userVM.isSfxOn) {
-      try {
-        _sfxPlayer.play(AssetSource('sounds/explosion.mp3'));
-      } catch (e) {
-        debugPrint('SFX play failed: $e');
-      }
-    }
+    // Prevent double tap
+    if (_isPressing) return;
+    setState(() {
+      _isPressing = true;
+    });
 
-    // Calculate delay based on text length (2s ~ 4s)
-    final double calculatedDelaySeconds =
-        (2.0 + (text.length / 50.0)).clamp(2.0, 4.0);
-
-    // Remove focus BEFORE showing dialog to prevent auto-restoration
-    _textFocusNode.unfocus(); // Explicitly unfocus the text field
+    // Remove focus BEFORE showing dialog
+    _textFocusNode.unfocus();
     FocusScope.of(context).unfocus();
 
     // 2. Show burning dialog overlay (Pixel Shred Effect)
@@ -137,53 +156,52 @@ class _HomeScreenState extends State<HomeScreen>
         delay: Duration(milliseconds: (calculatedDelaySeconds * 1000).toInt()),
         onComplete: () async {
           Navigator.of(context).pop(); // Close burning dialog
+
           // Delay unfocus to override any focus restoration
           await Future.delayed(const Duration(milliseconds: 150));
+
+          if (!context.mounted) {
+            return;
+          }
+
           if (context.mounted) {
             _textFocusNode.unfocus(); // Explicitly unfocus the text field
             FocusScope.of(context).unfocus();
           }
 
           // 3. Save post and process
-          ventingVM.finishBurning(
-            userVM.selectedPersona,
-            text,
-            userVM.userId ?? 'anonymous',
-            userVM.nickname ?? '익명',
-          );
+          final actualPersona = _getActualPersona();
 
-          // 4. Update Level & Items (Anti-Abuse: Only if length >= 20)
-          if (text.trim().length >= 20) {
-            userVM.addPoints(1);
-            ventingVM.gainItems();
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('🔥 감정을 태우고 경험치와 아이템을 획득했습니다!'),
-                  backgroundColor: Color(0xFFFF4D00),
-                ),
-              );
-            }
-          } else {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text('감정이 태워졌습니다! (20자 이상 작성 시 보상 획득)')),
-              );
-            }
-          }
-
-          _textController.clear();
-          setState(() {
-            _angerLevel = 0;
-            _hasConfirmedShare = false; // Reset confirmation
-          });
-
-          // Show AI response dialog
-          // Show AI response dialog ONLY if NOT sharing to square
           if (context.mounted && !ventingVM.shareToSquare) {
-            _showAiResponseDialog(context, ventingVM);
-          } else {
+            // Private Mode
+
+            // Create the future but don't await blocking UI
+            final futureResponse = ventingVM.finishBurning(
+              actualPersona,
+              text,
+              userVM.userId ?? 'anonymous',
+              userVM.nickname ?? '익명',
+              userVM, // Passed userVM
+              angerLevel: _angerLevel,
+              manualTag: _selectedTag,
+            );
+
+            if (context.mounted) {
+              _showAiResponseDialog(context, ventingVM, userVM, text,
+                  pendingPostFuture: futureResponse);
+            }
+          } else if (context.mounted) {
+            // Public Mode
+            await ventingVM.finishBurning(
+              actualPersona,
+              text,
+              userVM.userId ?? 'anonymous',
+              userVM.nickname ?? '익명',
+              userVM, // Passed userVM
+              angerLevel: _angerLevel,
+              manualTag: _selectedTag,
+            );
+
             if (context.mounted) {
               ScaffoldMessenger.of(context)
                   .showSnackBar(const SnackBar(content: Text('광장에 공유되었습니다.')));
@@ -197,8 +215,7 @@ class _HomeScreenState extends State<HomeScreen>
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: Colors.white, // White paper
-              borderRadius:
-                  BorderRadius.circular(4), // Sharp corners like paper
+              borderRadius: BorderRadius.circular(4),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.3),
@@ -208,7 +225,7 @@ class _HomeScreenState extends State<HomeScreen>
               ],
             ),
             child: CustomPaint(
-                foregroundPainter: GraphPaperPainter(), // Draw grid on top
+                foregroundPainter: GraphPaperPainter(),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -245,52 +262,44 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  void _showAiResponseDialog(BuildContext context, VentingViewModel vm) {
-    showDialog(
+  void _showAiResponseDialog(BuildContext context, VentingViewModel vm,
+      UserViewModel userVM, String userText,
+      {required Future<PrivatePost?> pendingPostFuture}) async {
+    // 2. Show Dialog and wait for result (chat history)
+    final result = await showDialog<List<Map<String, String>>>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: false, // Force user to close explicitly or via X
       builder: (context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF1E1E1E),
-          title: const Row(
-            children: [
-              Icon(Icons.auto_awesome, color: Color(0xFFFF4D00)),
-              SizedBox(width: 8),
-              Text('마음이의 위로', style: TextStyle(color: Colors.white)),
-            ],
-          ),
-          content: Consumer<VentingViewModel>(
-            builder: (context, vm, child) {
-              if (vm.lastAiResponse == null) {
-                return const Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(color: Color(0xFFFF4D00)),
-                    SizedBox(height: 16),
-                    Text('감정을 분석하고 위로를 준비 중입니다...',
-                        style: TextStyle(color: Colors.white70)),
-                  ],
-                );
-              }
-              return Text(
-                vm.lastAiResponse!,
-                style: const TextStyle(color: Colors.white, height: 1.5),
-              );
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                vm.clearAiResponse();
-                FocusScope.of(context).unfocus();
-                Navigator.pop(context);
-              },
-              child: const Text('닫기', style: TextStyle(color: Colors.grey)),
-            ),
-          ],
+        return AiChatDialog(
+          initialUserText: userText,
+          initialAiResponse: null,
+          pendingAiResponse: null, // No longer used, dialog handles trigger
+          persona: _getActualPersona(), // Use local selection
+          triggerAiOnInit: true, // Auto-start the conversation
         );
       },
     );
+
+    // 3. Reset Home Screen State IMMEDIATELY after dialog closes
+    if (mounted) {
+      setState(() {
+        _textController.clear();
+        _angerLevel = 0.0;
+        _isPressing = false;
+        _pulseController.reset();
+        _textFocusNode.unfocus();
+      });
+    }
+
+    // 4. Process Result (Background/Async)
+    if (result != null) {
+      // Wait for the post to be fully created/returned
+      final createdPost = await pendingPostFuture;
+      if (createdPost != null) {
+        // Update history in background
+        await vm.updatePrivatePostChatHistory(createdPost.id, result);
+      }
+    }
   }
 
   void _showSafetyDialog(BuildContext context, VentingViewModel ventingVM) {
@@ -388,6 +397,12 @@ class _HomeScreenState extends State<HomeScreen>
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text(userVM.nickname ?? '익명',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
             Row(
               children: [
                 Text('Lv.${userVM.level}',
@@ -459,6 +474,46 @@ class _HomeScreenState extends State<HomeScreen>
               children: [
                 const SizedBox(height: 16),
 
+                // Removed misplaced code from here.
+
+                // Persona Selector
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: ['랜덤', '전투', '공감', '팩폭', '유머'].map((p) {
+                      final isSelected = _selectedPersonaStr == p;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(p),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            if (selected)
+                              setState(() => _selectedPersonaStr = p);
+                          },
+                          selectedColor: const Color(0xFFFF4D00),
+                          backgroundColor: Colors.white10,
+                          labelStyle: TextStyle(
+                            color: isSelected ? Colors.white : Colors.grey,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            side: BorderSide(
+                              color: isSelected
+                                  ? const Color(0xFFFF4D00)
+                                  : Colors.transparent,
+                            ),
+                          ),
+                          showCheckmark: false,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
                 // Input Area
                 AngerMemoField(
                   controller: _textController,
@@ -466,6 +521,15 @@ class _HomeScreenState extends State<HomeScreen>
                       _textFocusNode, // Pass focus node for complete control
                   hintText: '지금 무슨 일이 있었나요? 속 시원하게 털어놓으세요...',
                 ),
+                // ... same as before ...
+                // Need to update finishBurning calls
+                /*
+                final actualPersona = _getActualPersona();
+                ...
+                ventingVM.finishBurning(
+                  actualPersona, 
+                  ...
+                */
 
                 const SizedBox(height: 16),
 
@@ -581,14 +645,13 @@ class _HomeScreenState extends State<HomeScreen>
                           // but we should ensure we stop cleanly.
                           if (_isPressing) {
                             _stopPressing();
-                            if (_angerLevel >= 80) {
-                              // Just burn, no more dialogs here since we handled safety check at start
-                              _burnEmotions(_textController.text);
+                            // Removed 80% threshold as requested.
+                            // Only check if text is not empty (already handled by Opacity logic visually)
+                            if (_textController.text.trim().isNotEmpty) {
+                              _handleBurn();
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                    content:
-                                        Text('감정을 더 모아서 꾹 눌러주세요! (80% 이상)')),
+                                const SnackBar(content: Text('감정을 적어주세요.')),
                               );
                             }
                           }

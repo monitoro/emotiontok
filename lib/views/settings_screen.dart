@@ -38,9 +38,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               _buildSettingTile(
                 icon: Icons.psychology,
-                title: 'AI 페르소나',
-                subtitle: _getPersonaName(userVM.selectedPersona),
-                onTap: () => _showPersonaDialog(context, userVM),
+                title: '기본 페르소나',
+                subtitle: userVM.defaultPersonaStr,
+                onTap: () => _showDefaultPersonaDialog(context, userVM),
               ),
             ],
           ),
@@ -192,6 +192,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     MaterialPageRoute(builder: (_) => const AdminScreen()),
                   ),
                   textColor: Colors.orange,
+                ),
+                _buildSettingTile(
+                  icon: Icons.favorite,
+                  title: '위로 횟수 100회 충전',
+                  subtitle: '테스트용: 마음의 위로 100회 추가',
+                  onTap: () async {
+                    await userVM.addComfortCounts(100);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                            content: Text(
+                                '위로 횟수가 100회 충전되었습니다. (현재: ${userVM.dailyComfortCount})')),
+                      );
+                    }
+                  },
+                  textColor: Colors.pinkAccent,
                 ),
               ],
             ),
@@ -357,26 +373,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showPersonaDialog(BuildContext context, UserViewModel userVM) {
+  void _showDefaultPersonaDialog(BuildContext context, UserViewModel userVM) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF2A2A2A),
-        title: const Text('AI 페르소나 선택'),
+        title: const Text('기본 페르소나 선택'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          children: Persona.values.map((persona) {
-            return RadioListTile<Persona>(
+          children: ['전투', '유머', '팩폭', '랜덤'].map((persona) {
+            return RadioListTile<String>(
               value: persona,
-              groupValue: userVM.selectedPersona,
-              title: Text(_getPersonaName(persona)),
+              groupValue: userVM.defaultPersonaStr,
+              title: Text(persona),
               activeColor: const Color(0xFFFF4D00),
               onChanged: (value) {
                 if (value != null) {
-                  userVM.setPersona(value);
+                  userVM.setDefaultPersona(value);
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('${_getPersonaName(value)} 선택됨')),
+                    SnackBar(content: Text('$value 페르소나가 기본값으로 설정되었습니다')),
                   );
                 }
               },

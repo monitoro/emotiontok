@@ -22,13 +22,20 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    print('DEBUG: LibraryScreen.build called');
     final ventingVM = Provider.of<VentingViewModel>(context);
+    final userVM = Provider.of<UserViewModel>(context);
+
+    final posts = ventingVM.myPostsForSelectedDate;
+    print(
+        'DEBUG: LibraryScreen Build. SelectedDate: ${ventingVM.selectedCalendarDate}');
+    print('DEBUG: myPostsForSelectedDate Count: ${posts.length}');
 
     // Auto-expand last item when date changes or initially
     if (_lastSelectedDate == null ||
         !isSameDay(_lastSelectedDate, ventingVM.selectedCalendarDate)) {
       _lastSelectedDate = ventingVM.selectedCalendarDate;
-      final posts = ventingVM.myPostsForSelectedDate;
+      // The 'posts' variable is already declared above, so we don't need to redeclare it here.
       if (posts.isNotEmpty) {
         _expandedIndex = posts.length - 1;
       } else {
@@ -51,7 +58,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
           _buildCalendar(ventingVM),
           Consumer<UserViewModel>(
             builder: (context, userVM, child) {
-              return _buildStatSummary(ventingVM, userVM);
+              return Column(
+                children: [
+                  _buildLevelSection(userVM),
+                  _buildStatSummary(ventingVM, userVM),
+                ],
+              );
             },
           ),
           const Divider(color: Colors.white10),
@@ -117,36 +129,94 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
+  Widget _buildLevelSection(UserViewModel userVM) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Lv.${userVM.level}',
+                  style: const TextStyle(
+                      color: Color(0xFFFF4D00),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold)),
+              // Total XP Text Removed as requested
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: userVM.levelProgress,
+              backgroundColor: Colors.white10,
+              color: const Color(0xFFFF4D00),
+              minHeight: 10,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              '다음 레벨까지 ${userVM.remainingXP} XP',
+              style: const TextStyle(color: Colors.white38, fontSize: 10),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStatSummary(VentingViewModel ventingVM, UserViewModel userVM) {
     return FutureBuilder<Map<String, int>>(
       future: ventingVM.getMyInteractionStats(userVM.userId ?? ''),
       builder: (context, snapshot) {
         final firewood = snapshot.data?['firewood'] ?? 0;
-        final water = snapshot.data?['comfortCount'] ??
-            snapshot.data?['water'] ??
-            0; // Check key consistency since I used 'water' in VM
+        final water = snapshot.data?['water'] ?? 0;
+        final receivedPoints = firewood + water;
+
+        // Update UserVM received points so logic is synced
+        // Note: This causes rebuild during build, but using addPostFrameCallback is better
+        // or just rely on display here. For display, we calculate total.
+
+        final writingPoints = userVM.writingPoints;
 
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white10),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildStatItem('태운 감정', '${userVM.totalBurnCount}',
-                    Icons.local_fire_department, const Color(0xFFFF4D00)),
-                _buildContainerLine(),
-                _buildStatItem(
-                    '받은 장작', '$firewood', Icons.fireplace, Colors.orange),
-                _buildContainerLine(),
-                _buildStatItem('받은 물', '$water', Icons.water_drop, Colors.blue),
-              ],
-            ),
+          child: Column(
+            children: [
+              // Point Breakdown Card
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white10),
+                ),
+                child: Column(
+                  children: [
+                    const Text('경험치 획득 내역',
+                        style: TextStyle(color: Colors.white70, fontSize: 14)),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildStatItem('글 작성', '$writingPoints', Icons.edit,
+                            const Color(0xFF4CAF50)),
+                        _buildContainerLine(),
+                        _buildStatItem('받은 장작', '$firewood', Icons.fireplace,
+                            Colors.orange),
+                        _buildContainerLine(),
+                        _buildStatItem(
+                            '받은 물', '$water', Icons.water_drop, Colors.blue),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
+            ],
           ),
         );
       },
@@ -207,6 +277,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             const SizedBox(height: 16),
             Text(
               '${DateFormat('MM월 dd일').format(ventingVM.selectedCalendarDate)}에 비운 감정이 없습니다.',
+              textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.grey),
             ),
           ],
@@ -283,40 +354,156 @@ class _LibraryScreenState extends State<LibraryScreen> {
                         ),
                         const SizedBox(height: 4),
                       ],
-                      Text(
-                        post.content,
-                        style: AppFonts.getFont(
-                          Provider.of<UserViewModel>(context).selectedFont,
-                          textStyle: const TextStyle(fontSize: 15, height: 1.5),
-                        ),
-                      ),
-                      if (post.aiResponse != null) ...[
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.03),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Icon(Icons.auto_awesome,
-                                  size: 14, color: Color(0xFFFF4D00)),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  post.aiResponse!,
-                                  style: const TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.grey,
-                                      height: 1.4),
+                      // Chat History Layout
+                      // Chat History Layout
+                      if (post.chatHistory.isNotEmpty) ...[
+                        ...post.chatHistory.map((msg) {
+                          final isUser = msg['role'] == 'user';
+                          return Align(
+                            alignment: isUser
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
+                            child: isUser
+                                ? // User Bubble
+                                Container(
+                                    margin: const EdgeInsets.only(
+                                        bottom: 12, left: 40),
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFFFF4D00),
+                                      borderRadius: BorderRadius.only(
+                                        topLeft: Radius.circular(12),
+                                        topRight: Radius.circular(12),
+                                        bottomLeft: Radius.circular(12),
+                                        bottomRight: Radius.circular(2),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      msg['content'] ?? '',
+                                      style: AppFonts.getFont(
+                                        Provider.of<UserViewModel>(context)
+                                            .selectedFont,
+                                        textStyle: const TextStyle(
+                                          fontSize: 15,
+                                          height: 1.5,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                : // AI Bubble
+                                Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const CircleAvatar(
+                                        radius: 14,
+                                        backgroundColor: Colors.white10,
+                                        child: Icon(Icons.auto_awesome,
+                                            size: 16, color: Color(0xFFFF4D00)),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Flexible(
+                                        child: Container(
+                                          padding: const EdgeInsets.all(12),
+                                          decoration: const BoxDecoration(
+                                            color: Colors.white10,
+                                            borderRadius: BorderRadius.only(
+                                              topLeft: Radius.circular(12),
+                                              topRight: Radius.circular(12),
+                                              bottomLeft: Radius.circular(2),
+                                              bottomRight: Radius.circular(12),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            msg['content'] ?? '',
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              color: Colors.white,
+                                              height: 1.4,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          );
+                        }),
+                      ] else ...[
+                        // Legacy Fallback
+                        // 1. User Message (Right)
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 12, left: 40),
+                            padding: const EdgeInsets.all(12),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFFF4D00),
+                              borderRadius: BorderRadius.only(
+                                topLeft: Radius.circular(12),
+                                topRight: Radius.circular(12),
+                                bottomLeft: Radius.circular(12),
+                                bottomRight: Radius.circular(2),
+                              ),
+                            ),
+                            child: Text(
+                              post.content,
+                              style: AppFonts.getFont(
+                                Provider.of<UserViewModel>(context)
+                                    .selectedFont,
+                                textStyle: const TextStyle(
+                                  fontSize: 15,
+                                  height: 1.5,
+                                  color: Colors.white,
                                 ),
                               ),
-                            ],
+                            ),
                           ),
                         ),
+
+                        // 2. AI Response (Left) if exists
+                        if (post.aiResponse != null) ...[
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const CircleAvatar(
+                                  radius: 14,
+                                  backgroundColor: Colors.white10,
+                                  child: Icon(Icons.auto_awesome,
+                                      size: 16, color: Color(0xFFFF4D00)),
+                                ),
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.white10,
+                                      borderRadius: BorderRadius.only(
+                                        topLeft: Radius.circular(12),
+                                        topRight: Radius.circular(12),
+                                        bottomLeft: Radius.circular(2),
+                                        bottomRight: Radius.circular(12),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      post.aiResponse!,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.white,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
                       ],
+
                       if (post.isPublic) ...[
                         const SizedBox(height: 12),
                         Align(

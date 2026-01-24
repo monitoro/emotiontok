@@ -9,11 +9,11 @@ class AppFonts {
   static const String poorStory = '푸어 스토리 (동화책)';
 
   static final List<String> fontList = [
+    poorStory,
     notoSansKr,
     nanumPenScript,
     hiMelody,
     gamjaFlower,
-    poorStory,
   ];
 
   static TextStyle getFont(String fontName, {TextStyle? textStyle}) {

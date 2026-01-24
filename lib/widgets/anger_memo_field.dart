@@ -61,12 +61,12 @@ class _AngerMemoFieldState extends State<AngerMemoField> {
     final now = DateTime.now();
     if (_lastTypingTime != null) {
       final difference = now.difference(_lastTypingTime!).inMilliseconds;
-      if (difference < 100) {
-        _angerIntensity += 0.15; // Very fast
-      } else if (difference < 250) {
-        _angerIntensity += 0.08; // Normal-Fast
-      } else if (difference < 500) {
-        _angerIntensity += 0.02; // Slow
+      if (difference < 200) {
+        _angerIntensity += 0.05; // Gentle increase (was 0.20)
+      } else if (difference < 400) {
+        _angerIntensity += 0.03; // Normal
+      } else if (difference < 800) {
+        _angerIntensity += 0.01; // Slow
       }
 
       _angerIntensity = _angerIntensity.clamp(0.0, 1.0);
@@ -83,8 +83,8 @@ class _AngerMemoFieldState extends State<AngerMemoField> {
     final currentColor = Color.lerp(_baseColor, _angryColor, _angerIntensity)!;
     final currentLineColor =
         Color.lerp(_lineColor, _angryLineColor, _angerIntensity)!;
-    final textColor = Color.lerp(Colors.black87, Colors.white,
-        _angerIntensity * 0.8)!; // Text gets lighter on dark red
+    // Text color fixed to black/grey as requested
+    final textColor = Colors.black87;
 
     return Transform.rotate(
       angle:

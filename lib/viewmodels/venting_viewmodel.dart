@@ -176,6 +176,7 @@ class PrivatePost {
   final String? aiResponse;
   final List<String> tags;
   final bool isPublic;
+  final List<Map<String, String>> chatHistory; // New: Full chat history
 
   PrivatePost({
     required this.id,
@@ -186,6 +187,7 @@ class PrivatePost {
     this.aiResponse,
     this.tags = const [],
     this.isPublic = false,
+    this.chatHistory = const [],
   });
 
   Map<String, dynamic> toMap() {
@@ -198,6 +200,7 @@ class PrivatePost {
       'aiResponse': aiResponse,
       'tags': tags,
       'isPublic': isPublic,
+      'chatHistory': chatHistory,
     };
   }
 
@@ -211,6 +214,10 @@ class PrivatePost {
       aiResponse: map['aiResponse'],
       tags: List<String>.from(map['tags'] ?? []),
       isPublic: map['isPublic'] ?? false,
+      chatHistory: map['chatHistory'] != null
+          ? List<Map<String, String>>.from((map['chatHistory'] as List)
+              .map((item) => Map<String, String>.from(item)))
+          : [],
     );
   }
 }
@@ -258,6 +265,32 @@ class VentingViewModel with ChangeNotifier {
     final List<String>? ids = prefs.getStringList('read_post_ids');
     if (ids != null) {
       _readPostIds.addAll(ids);
+      notifyListeners();
+    }
+  }
+
+  // Update chat history for a specific post
+  Future<void> updatePrivatePostChatHistory(
+      String postId, List<Map<String, String>> history) async {
+    final index = _privateHistory.indexWhere((p) => p.id == postId);
+    if (index != -1) {
+      final oldPost = _privateHistory[index];
+      // Create new post with updated history
+      final newPost = PrivatePost(
+        id: oldPost.id,
+        content: oldPost.content,
+        angerLevel: oldPost.angerLevel,
+        timestamp: oldPost.timestamp,
+        imagePath: oldPost.imagePath,
+        aiResponse:
+            oldPost.aiResponse, // Keep initial response as summary/preview
+        tags: oldPost.tags,
+        isPublic: oldPost.isPublic,
+        chatHistory: history,
+      );
+
+      _privateHistory[index] = newPost;
+      await _savePrivateHistory();
       notifyListeners();
     }
   }
@@ -417,22 +450,35 @@ class VentingViewModel with ChangeNotifier {
   }
 
   Future<void> _loadPrivateHistory() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? historyJson = prefs.getString('private_history');
-    if (historyJson != null) {
-      final List<dynamic> decoded = jsonDecode(historyJson);
-      _privateHistory.clear();
-      _privateHistory
-          .addAll(decoded.map((e) => PrivatePost.fromMap(e)).toList());
-      notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? historyJson = prefs.getString('private_history');
+      if (historyJson != null) {
+        final List<dynamic> decoded = jsonDecode(historyJson);
+        _privateHistory.clear();
+        _privateHistory
+            .addAll(decoded.map((e) => PrivatePost.fromMap(e)).toList());
+        debugPrint(
+            'DEBUG: Loaded ${_privateHistory.length} posts from storage.');
+        notifyListeners();
+      } else {
+        debugPrint('DEBUG: No private history found in storage.');
+      }
+    } catch (e, stack) {
+      debugPrint('DEBUG: Failed to load history: $e\n$stack');
     }
   }
 
   Future<void> _savePrivateHistory() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String encoded =
-        jsonEncode(_privateHistory.map((p) => p.toMap()).toList());
-    await prefs.setString('private_history', encoded);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded =
+          jsonEncode(_privateHistory.map((p) => p.toMap()).toList());
+      await prefs.setString('private_history', encoded);
+      debugPrint('DEBUG: Saved ${_privateHistory.length} posts to storage.');
+    } catch (e, stack) {
+      debugPrint('DEBUG: Failed to save history: $e\n$stack');
+    }
   }
 
   VentingMode get currentMode => _currentMode;
@@ -453,9 +499,11 @@ class VentingViewModel with ChangeNotifier {
 
   List<PrivatePost> get myPostsForSelectedDate {
     return _privateHistory.where((p) {
-      return p.timestamp.year == _selectedCalendarDate.year &&
-          p.timestamp.month == _selectedCalendarDate.month &&
-          p.timestamp.day == _selectedCalendarDate.day;
+      final pDate = p.timestamp.toLocal();
+      final targetDate = _selectedCalendarDate.toLocal();
+      return pDate.year == targetDate.year &&
+          pDate.month == targetDate.month &&
+          pDate.day == targetDate.day;
     }).toList();
   }
 
@@ -639,80 +687,86 @@ class VentingViewModel with ChangeNotifier {
     return null;
   }
 
-  void finishBurning(
-      Persona persona, String text, String userId, String nickname,
-      {double? angerLevel, String? manualTag}) async {
-    final extractedTags = _extractTags(text, manualTag: manualTag);
-    final now = DateTime.now();
-    String postId = now.millisecondsSinceEpoch.toString();
+  Future<PrivatePost?> finishBurning(Persona persona, String text,
+      String userId, String nickname, UserViewModel userVM,
+      {double angerLevel = 0, String manualTag = '자동'}) async {
+    if (_isBurning) return null; // Already burning
+    _isBurning = true;
+    notifyListeners();
 
-    PublicPost? newPublicPost;
+    try {
+      // 1. Determine Tags
+      final extractedTags = _extractTags(text, manualTag: manualTag);
 
-    if (_shareToSquare) {
-      final docRef = _firestore.collection('posts').doc();
-      postId = docRef.id;
+      bool isPublic = _shareToSquare;
 
-      newPublicPost = PublicPost(
-        id: postId,
-        authorNickname: nickname,
+      _lastAiResponse = null;
+
+      // 2. Create Private Post (Init with just user message)
+      final newPost = PrivatePost(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
         content: text,
-        angerLevel: angerLevel ?? 50,
-        timestamp: now,
-        imagePath: _pickedImagePath,
-        tags: extractedTags,
-        fontName: '나눔 펜 (손글씨)', // Default or pass font name if needed
-        authorLevel:
-            1, // Default or pass level if crucial, but display uses local usually
-        authorId: userId,
-      );
-      await docRef.set(newPublicPost.toMap());
-    }
-
-    _privateHistory.insert(
-      0,
-      PrivatePost(
-        id: postId,
-        content: text,
-        angerLevel: angerLevel ?? 50,
-        timestamp: now,
+        angerLevel: angerLevel,
+        timestamp: DateTime.now(),
         imagePath: _pickedImagePath,
         aiResponse: null,
         tags: extractedTags,
-        isPublic: _shareToSquare,
-      ),
-    );
-    _savePrivateHistory(); // Save initial post
+        isPublic: isPublic,
+        chatHistory: [
+          {'role': 'user', 'content': text},
+        ],
+      );
 
-    _isBurning = false;
-    _todaysBurnCount++;
-    _pickedImagePath = null;
-    // Rewards handled in UI (HomeScreen) based on text length
-    notifyListeners();
+      // 3. Save to Local Persistence FIRST (Critical Path)
+      _privateHistory.insert(0, newPost);
+      await _savePrivateHistory();
 
-    // AI 위로는 광장 공유하지 않는 글에만 제공
-    if (!_shareToSquare) {
-      final response = await AIService.getResponse(persona, text);
-      _lastAiResponse = response;
+      // Auto-switch calendar to today
+      _selectedCalendarDate = DateTime.now();
 
-      // Update private history with AI response
-      final lastPrivateIndex = _privateHistory
-          .indexWhere((p) => p.aiResponse == null && p.content == text);
-      if (lastPrivateIndex != -1) {
-        _privateHistory[lastPrivateIndex] = PrivatePost(
-          id: _privateHistory[lastPrivateIndex].id,
-          content: _privateHistory[lastPrivateIndex].content,
-          angerLevel: _privateHistory[lastPrivateIndex].angerLevel,
-          timestamp: _privateHistory[lastPrivateIndex].timestamp,
-          imagePath: _privateHistory[lastPrivateIndex].imagePath,
-          aiResponse: response,
-          tags: extractedTags,
-          isPublic: _privateHistory[lastPrivateIndex].isPublic,
-        );
-        _savePrivateHistory(); // Save updated post with AI response
+      notifyListeners();
+
+      // 4. Handle Public Share (Optional/Risky)
+      if (isPublic) {
+        try {
+          final docRef = _firestore.collection('posts').doc();
+          final newPublicPost = PublicPost(
+            id: docRef.id,
+            authorNickname: nickname,
+            content: text,
+            angerLevel: angerLevel,
+            timestamp: DateTime.now(),
+            imagePath: _pickedImagePath,
+            tags: extractedTags,
+            fontName: '나눔 펜 (손글씨)',
+            authorLevel: 1,
+            authorId: userId,
+          );
+          await docRef.set(newPublicPost.toMap());
+        } catch (e) {
+          debugPrint('DEBUG: Public share failed: $e');
+        }
       }
-    }
 
-    notifyListeners();
+      // 5. Update Stats (Optional/Risky)
+      try {
+        await userVM.incrementBurnCount();
+        await userVM.addWritingPoints(10);
+      } catch (e) {
+        debugPrint('DEBUG: Stat update failed: $e');
+      }
+
+      // 6. Reset State
+      _pickedImagePath = null;
+
+      return newPost;
+    } catch (e, stack) {
+      debugPrint('DEBUG: Burning failed fatal: $e\n$stack');
+      return null;
+    } finally {
+      _isBurning = false;
+      notifyListeners();
+    }
   }
 
   static const Map<String, List<String>> keywordMap = {

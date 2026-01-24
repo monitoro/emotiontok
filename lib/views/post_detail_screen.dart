@@ -67,7 +67,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('감정 상세'),
+        title: Text(
+            '감정 상세 (${displayPost.tags.isNotEmpty ? displayPost.tags.first : '기타'})',
+            style: const TextStyle(fontSize: 16)),
         actions: [
           // Only show report/block for posts not authored by current user
           if (displayPost.authorId != userVM.userId)
@@ -113,115 +115,128 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               padding: const EdgeInsets.all(24),
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 4, vertical: 2),
-                          decoration: BoxDecoration(
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: PublicPost.getLevelColor(displayPost.authorLevel)
+                            .withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
                             color: PublicPost.getLevelColor(
-                                    displayPost.authorLevel)
-                                .withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                                color: PublicPost.getLevelColor(
-                                    displayPost.authorLevel),
-                                width: 0.5),
-                          ),
-                          child: Text(
-                            'Lv.${displayPost.authorLevel}',
-                            style: TextStyle(
-                              color: PublicPost.getLevelColor(
-                                  displayPost.authorLevel),
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                                displayPost.authorLevel),
+                            width: 0.5),
+                      ),
+                      child: Text(
+                        'Lv.${displayPost.authorLevel}',
+                        style: TextStyle(
+                          color:
+                              PublicPost.getLevelColor(displayPost.authorLevel),
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
                         ),
-                        const SizedBox(width: 8),
-                        Text(displayPost.authorNickname,
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18,
-                                color: PublicPost.getLevelColor(
-                                    displayPost.authorLevel))),
-                      ],
+                      ),
                     ),
+                    const SizedBox(width: 6),
+                    Text(displayPost.authorNickname,
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: PublicPost.getLevelColor(
+                                displayPost.authorLevel))),
+                    const SizedBox(width: 8),
+                    // Compact Anger Level in Header
+                    Text('분노 ${displayPost.angerLevel.toInt()}%',
+                        style: const TextStyle(
+                            color: Colors.redAccent,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold)),
+                    const Spacer(),
                     Text(timeStr,
                         style:
-                            const TextStyle(color: Colors.grey, fontSize: 12)),
+                            const TextStyle(color: Colors.grey, fontSize: 10)),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8)),
-                    child: Text('분노 ${displayPost.angerLevel.toInt()}%',
-                        style: const TextStyle(
-                            color: Colors.red, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
+
+                // Image
                 if (displayPost.imagePath != null) ...[
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(12),
                     child: kIsWeb
                         ? Image.network(displayPost.imagePath!)
                         : Image.file(File(displayPost.imagePath!)),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
                 ],
-                Text(displayPost.content,
-                    style: const TextStyle(fontSize: 18, height: 1.6)),
-                const SizedBox(height: 32),
+
+                // Content (First line bold)
+                RichText(
+                  text: TextSpan(
+                    style: const TextStyle(color: Colors.white, height: 1.5),
+                    children: [
+                      TextSpan(
+                        text: '${displayPost.content.split('\n').first}\n',
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      TextSpan(
+                        text: displayPost.content.contains('\n')
+                            ? displayPost.content.substring(
+                                displayPost.content.indexOf('\n') + 1)
+                            : '', // If no newline, bold the whole thing (handled by first part), or maybe just bold first line.
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
                 // Interaction Buttons
                 Consumer<VentingViewModel>(
                   builder: (context, ventingVM, child) {
                     return Row(
                       children: [
-                        _DetailInteractionButton(
-                          icon: Icons.fireplace,
-                          label: '장작 넣기',
-                          count: displayPost.supportCount,
-                          itemCount: ventingVM.firewoodCount,
-                          color: Colors.orange,
-                          onTap: () async {
-                            try {
-                              await ventingVM.addFirewood(displayPost.id);
-                            } catch (e) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(e.toString())),
-                                );
+                        Expanded(
+                          child: _DetailInteractionButton(
+                            icon: Icons.fireplace,
+                            label: '장작', // Shortened label
+                            count: displayPost.supportCount,
+                            itemCount: ventingVM.firewoodCount,
+                            color: Colors.orange,
+                            onTap: () async {
+                              try {
+                                await ventingVM.addFirewood(displayPost.id);
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(e.toString())),
+                                  );
+                                }
                               }
-                            }
-                          },
+                            },
+                          ),
                         ),
                         const SizedBox(width: 12),
-                        _DetailInteractionButton(
-                          icon: Icons.water_drop,
-                          label: '물 뿌리기',
-                          count: displayPost.comfortCount,
-                          itemCount: ventingVM.waterCount,
-                          color: Colors.blue,
-                          onTap: () async {
-                            try {
-                              await ventingVM.addWater(displayPost.id);
-                            } catch (e) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(e.toString())),
-                                );
+                        Expanded(
+                          child: _DetailInteractionButton(
+                            icon: Icons.water_drop,
+                            label: '물', // Shortened label
+                            count: displayPost.comfortCount,
+                            itemCount: ventingVM.waterCount,
+                            color: Colors.blue,
+                            onTap: () async {
+                              try {
+                                await ventingVM.addWater(displayPost.id);
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(e.toString())),
+                                  );
+                                }
                               }
-                            }
-                          },
+                            },
+                          ),
                         ),
                       ],
                     );
@@ -684,28 +699,30 @@ class _DetailInteractionButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: const EdgeInsets.symmetric(
+            horizontal: 8, vertical: 8), // Reduced vertical padding
         decoration: BoxDecoration(
           color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(color: color.withOpacity(0.3)),
         ),
         child: Column(
           children: [
             Row(
+              mainAxisAlignment: MainAxisAlignment.center, // Centered
               children: [
-                Icon(icon, size: 20, color: color),
-                const SizedBox(width: 8),
+                Icon(icon, size: 18, color: color),
+                const SizedBox(width: 6),
                 Text('$label $count',
                     style: TextStyle(
                         color: color,
-                        fontSize: 14,
+                        fontSize: 12, // Reduced font
                         fontWeight: FontWeight.bold)),
               ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text('보유: $itemCount',
-                style: TextStyle(color: color.withOpacity(0.7), fontSize: 10)),
+                style: TextStyle(color: color.withOpacity(0.7), fontSize: 9)),
           ],
         ),
       ),
