@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/admin_viewmodel.dart';
 import '../viewmodels/venting_viewmodel.dart';
+import 'post_detail_screen.dart';
 
 class AdminScreen extends StatelessWidget {
   const AdminScreen({super.key});
@@ -197,152 +198,153 @@ class AdminScreen extends StatelessWidget {
         itemCount: adminVM.reportedPosts.length,
         itemBuilder: (context, index) {
           final item = adminVM.reportedPosts[index];
-          final isDeleted = item['isDeleted'] == true;
+          // isDeleted is already filtered by VM, but safe to default
           final reasons =
               (item['reasons'] as List).cast<String>().toSet().toList();
 
           return Card(
             color: const Color(0xFF1E1E1E),
-            margin: const EdgeInsets.only(bottom: 16),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            margin: const EdgeInsets.only(bottom: 8), // Reduced margin
+            child: ExpansionTile(
+              tilePadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+              title: Row(
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.redAccent.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: Colors.redAccent),
-                        ),
-                        child: Text(
-                          '신고 ${item['reportCount']}회',
-                          style: const TextStyle(
-                              color: Colors.redAccent,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      if (isDeleted)
-                        const Text('(삭제됨)',
-                            style: TextStyle(color: Colors.grey, fontSize: 12)),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    item['content'] ?? '',
-                    style: TextStyle(
-                      color: isDeleted ? Colors.grey : Colors.white,
-                      fontSize: 16,
-                      decoration: isDeleted ? TextDecoration.lineThrough : null,
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.redAccent),
                     ),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
+                    child: Text(
+                      '${item['reportCount']}회',
+                      style: const TextStyle(
+                          color: Colors.redAccent,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold),
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '작성자: ${item['authorNickname']}',
-                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      item['content'] ?? '',
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 4,
-                    runSpacing: 4,
-                    children: reasons
-                        .map((r) => Chip(
-                              label:
-                                  Text(r, style: const TextStyle(fontSize: 10)),
-                              backgroundColor: Colors.white10,
-                              padding: EdgeInsets.zero,
-                              labelPadding:
-                                  const EdgeInsets.symmetric(horizontal: 8),
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
-                            ))
-                        .toList(),
-                  ),
-                  const Divider(color: Colors.white12, height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      if (!isDeleted)
-                        TextButton.icon(
-                          onPressed: () async {
-                            final confirm = await showDialog<bool>(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                backgroundColor: const Color(0xFF2A2A2A),
-                                title: const Text('게시글 삭제',
-                                    style: TextStyle(color: Colors.white)),
-                                content: const Text('정말 이 게시글을 삭제하시겠습니까?',
-                                    style: TextStyle(color: Colors.white70)),
-                                actions: [
-                                  TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(context, false),
-                                      child: const Text('취소')),
-                                  TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(context, true),
-                                      child: const Text('삭제',
-                                          style: TextStyle(color: Colors.red))),
-                                ],
-                              ),
-                            );
-
-                            if (confirm == true) {
-                              await adminVM.deletePost(item['postId']);
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                        content: Text('게시글이 삭제되었습니다.')));
-                              }
-                            }
-                          },
-                          icon: const Icon(Icons.delete,
-                              color: Colors.grey, size: 20),
-                          label: const Text('삭제',
-                              style: TextStyle(color: Colors.grey)),
-                        ),
-                      const SizedBox(width: 8),
-                      // 상세 내용을 다이얼로그로 표시
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          showDialog(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              backgroundColor: const Color(0xFF2A2A2A),
-                              title: const Text('상세 내용',
-                                  style: TextStyle(color: Colors.white)),
-                              content: SingleChildScrollView(
-                                child: Text(item['content'] ?? '',
-                                    style:
-                                        const TextStyle(color: Colors.white)),
-                              ),
-                              actions: [
-                                TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: const Text('닫기'))
-                              ],
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.visibility, size: 20),
-                        label: const Text('상세 보기'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2A2A2A),
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                    ],
-                  )
                 ],
               ),
+              subtitle: Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '작성자: ${item['authorNickname']} | 사유: ${reasons.join(", ")}',
+                  style: const TextStyle(color: Colors.grey, fontSize: 11),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              children: [
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                            color: Colors.black12,
+                            borderRadius: BorderRadius.circular(8)),
+                        child: Text(
+                          item['content'] ?? '',
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 13),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton.icon(
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  backgroundColor: const Color(0xFF2A2A2A),
+                                  title: const Text('게시글 삭제',
+                                      style: TextStyle(color: Colors.white)),
+                                  content: const Text('정말 이 게시글을 삭제하시겠습니까?',
+                                      style: TextStyle(color: Colors.white70)),
+                                  actions: [
+                                    TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, false),
+                                        child: const Text('취소')),
+                                    TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, true),
+                                        child: const Text('삭제',
+                                            style:
+                                                TextStyle(color: Colors.red))),
+                                  ],
+                                ),
+                              );
+
+                              if (confirm == true) {
+                                await adminVM.deletePost(item['postId']);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                          content: Text('게시글이 삭제되었습니다.')));
+                                }
+                              }
+                            },
+                            icon: const Icon(Icons.delete,
+                                color: Colors.grey, size: 18),
+                            label: const Text('삭제',
+                                style: TextStyle(color: Colors.grey)),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              final ventingVM = Provider.of<VentingViewModel>(
+                                  context,
+                                  listen: false);
+                              final post =
+                                  ventingVM.getPublicPost(item['postId']);
+
+                              if (post != null) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) =>
+                                          PostDetailScreen(post: post)),
+                                );
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content: Text(
+                                            '게시글 정보를 찾을 수 없습니다 (로컬 데이터 미동기화 가능성)')));
+                              }
+                            },
+                            icon: const Icon(Icons.visibility, size: 18),
+                            label: const Text('상세 페이지 이동'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2A2A2A),
+                              foregroundColor: Colors.white,
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           );
         },

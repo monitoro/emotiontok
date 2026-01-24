@@ -192,7 +192,17 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           count: displayPost.supportCount,
                           itemCount: ventingVM.firewoodCount,
                           color: Colors.orange,
-                          onTap: () => ventingVM.addFirewood(displayPost.id),
+                          onTap: () async {
+                            try {
+                              await ventingVM.addFirewood(displayPost.id);
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(e.toString())),
+                                );
+                              }
+                            }
+                          },
                         ),
                         const SizedBox(width: 12),
                         _DetailInteractionButton(
@@ -201,7 +211,17 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           count: displayPost.comfortCount,
                           itemCount: ventingVM.waterCount,
                           color: Colors.blue,
-                          onTap: () => ventingVM.addWater(displayPost.id),
+                          onTap: () async {
+                            try {
+                              await ventingVM.addWater(displayPost.id);
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(e.toString())),
+                                );
+                              }
+                            }
+                          },
                         ),
                       ],
                     );
@@ -375,13 +395,24 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   child: const Text('취소'),
                 ),
                 TextButton(
-                  onPressed: () {
-                    ventingVM.reportPost(
-                        post.id, selectedReason, userVM.userId ?? 'anonymous');
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('신고가 접수되었습니다.')),
-                    );
+                  onPressed: () async {
+                    try {
+                      await ventingVM.reportPost(post.id, selectedReason,
+                          userVM.userId ?? 'anonymous');
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('신고가 접수되었습니다.')),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(e.toString())),
+                        );
+                      }
+                    }
                   },
                   child: const Text('신고', style: TextStyle(color: Colors.red)),
                 ),
@@ -513,15 +544,26 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   child: const Text('취소'),
                 ),
                 TextButton(
-                  onPressed: () {
-                    ventingVM.reportPost(
-                        post.id,
-                        "[댓글 신고: ${comment.content}] $selectedReason",
-                        userVM.userId ?? 'anonymous');
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('댓글 신고가 접수되었습니다.')),
-                    );
+                  onPressed: () async {
+                    try {
+                      await ventingVM.reportPost(
+                          post.id,
+                          "[댓글 신고: ${comment.content}] $selectedReason",
+                          userVM.userId ?? 'anonymous');
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('댓글 신고가 접수되었습니다.')),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(e.toString())),
+                        );
+                      }
+                    }
                   },
                   child: const Text('신고', style: TextStyle(color: Colors.red)),
                 ),

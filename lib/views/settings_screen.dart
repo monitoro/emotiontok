@@ -6,8 +6,15 @@ import '../utils/app_fonts.dart';
 import '../services/data_export_service.dart';
 import 'admin_screen.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  int _versionTapCount = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -103,7 +110,7 @@ class SettingsScreen extends StatelessWidget {
                 icon: Icons.info,
                 title: '버전',
                 subtitle: 'v1.0.0',
-                onTap: null,
+                onTap: () => _handleVersionTap(context, userVM),
               ),
               _buildSettingTile(
                 icon: Icons.description,
@@ -172,21 +179,22 @@ class SettingsScreen extends StatelessWidget {
             ],
           ),
           const Divider(color: Colors.white10),
-          _buildSection(
-            title: '관리자',
-            children: [
-              _buildSettingTile(
-                icon: Icons.admin_panel_settings,
-                title: '관리자 모드',
-                subtitle: '시드 데이터 생성 및 관리',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const AdminScreen()),
+          if (userVM.isAdmin)
+            _buildSection(
+              title: '관리자',
+              children: [
+                _buildSettingTile(
+                  icon: Icons.admin_panel_settings,
+                  title: '관리자 모드',
+                  subtitle: '시드 데이터 생성 및 관리',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AdminScreen()),
+                  ),
+                  textColor: Colors.orange,
                 ),
-                textColor: Colors.orange,
-              ),
-            ],
-          ),
+              ],
+            ),
           const SizedBox(height: 32),
         ],
       ),
@@ -484,8 +492,9 @@ class SettingsScreen extends StatelessWidget {
 - 모든 데이터는 기기 내부에 저장됨
 
 4. 개인정보의 제3자 제공
-- 본 앱은 사용자의 개인정보를 외부에 제공하지 않습니다.
-- 모든 데이터는 로컬에 저장됩니다.
+- 본 앱은 사용자의 개인정보를 외부에 판매하지 않습니다.
+- 단, '광장'에 공유된 게시글, 댓글, 신고 데이터는 서버(Firebase)에 저장되어 다른 사용자와 공유됩니다.
+- 개인 감정 기록(Private)은 기기 내부에만 저장됩니다.
 
 5. 개인정보의 파기
 - 사용자가 '모든 데이터 초기화'를 실행하면 즉시 파기됩니다.
@@ -520,16 +529,93 @@ class SettingsScreen extends StatelessWidget {
           ),
           TextButton(
             onPressed: () async {
-              // TODO: Implement full data reset
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('데이터가 초기화되었습니다'),
-                  backgroundColor: Colors.red,
-                ),
-              );
+              // 1. Reset ViewModels
+              await userVM.resetAllData();
+              final ventingVM =
+                  Provider.of<VentingViewModel>(context, listen: false);
+              await ventingVM.clearAllData();
+
+              if (context.mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('모든 데이터가 초기화되었습니다.'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             },
             child: const Text('초기화', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleVersionTap(BuildContext context, UserViewModel userVM) {
+    if (userVM.isAdmin) return;
+
+    setState(() {
+      _versionTapCount++;
+    });
+
+    if (_versionTapCount >= 7) {
+      _versionTapCount = 0; // Reset
+      _showAdminPasswordDialog(context, userVM);
+    } else if (_versionTapCount > 2) {
+      ScaffoldMessenger.of(context).clearSnackBars(); // Prevent stacking
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('개발자 모드까지 ${7 - _versionTapCount}단계 남았습니다'),
+          duration: const Duration(milliseconds: 500),
+        ),
+      );
+    }
+  }
+
+  void _showAdminPasswordDialog(BuildContext context, UserViewModel userVM) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        title: const Text('관리자 권한 인증', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: controller,
+          obscureText: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: '비밀번호를 입력하세요',
+            hintStyle: TextStyle(color: Colors.grey),
+            enabledBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.white30)),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final success = await userVM.verifyAdminPassword(controller.text);
+              if (context.mounted) {
+                Navigator.pop(context);
+                if (success) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('관리자 모드가 활성화되었습니다!')),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('비밀번호가 일치하지 않습니다.')),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text('확인', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),

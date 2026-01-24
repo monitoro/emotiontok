@@ -314,8 +314,49 @@ class VentingViewModel with ChangeNotifier {
     }
   }
 
+  final Set<String> _reportedPostIds = {};
+  final Map<String, DateTime> _postInteractionTimestamps = {};
+
+  Future<void> _loadInteractionLimits() async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String>? reported = prefs.getStringList('reported_post_ids');
+    if (reported != null) {
+      _reportedPostIds.addAll(reported);
+    }
+
+    final String? timestampsJson = prefs.getString('interaction_timestamps');
+    if (timestampsJson != null) {
+      final Map<String, dynamic> decoded = jsonDecode(timestampsJson);
+      decoded.forEach((key, value) {
+        _postInteractionTimestamps[key] = DateTime.parse(value);
+      });
+    }
+  }
+
+  Future<void> _saveInteractionLimits() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('reported_post_ids', _reportedPostIds.toList());
+
+    final Map<String, String> encodedTimestamps = {};
+    _postInteractionTimestamps.forEach((key, value) {
+      encodedTimestamps[key] = value.toIso8601String();
+    });
+    await prefs.setString(
+        'interaction_timestamps', jsonEncode(encodedTimestamps));
+  }
+
+  bool canInteract(String postId) {
+    if (!_postInteractionTimestamps.containsKey(postId)) return true;
+    final lastTime = _postInteractionTimestamps[postId]!;
+    return DateTime.now().difference(lastTime) >= const Duration(minutes: 5);
+  }
+
   Future<void> reportPost(
       String postId, String reason, String reporterId) async {
+    if (_reportedPostIds.contains(postId)) {
+      throw '이미 신고한 게시글입니다.'; // Throw exception for UI
+    }
+
     try {
       await _firestore.collection('reports').add({
         'postId': postId,
@@ -323,8 +364,13 @@ class VentingViewModel with ChangeNotifier {
         'reporterId': reporterId,
         'timestamp': FieldValue.serverTimestamp(),
       });
+
+      _reportedPostIds.add(postId);
+      await _saveInteractionLimits();
+      notifyListeners();
     } catch (e) {
       print("Error reporting post: $e");
+      rethrow;
     }
   }
 
@@ -334,6 +380,7 @@ class VentingViewModel with ChangeNotifier {
 
   Future<void> _initFirebase() async {
     await _signInAnonymously();
+    _loadInteractionLimits(); // Load limits
     _subscribeToPosts();
   }
 
@@ -530,33 +577,43 @@ class VentingViewModel with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> addFirewood(String postId) async {
-    if (_firewoodCount <= 0) return false;
+  Future<void> addFirewood(String postId) async {
+    if (_firewoodCount <= 0) throw '장작이 부족합니다.';
+    if (!canInteract(postId)) throw '5분 뒤에 다시 위로할 수 있습니다.';
+
     try {
       await _firestore.collection('posts').doc(postId).update({
         'supportCount': FieldValue.increment(1),
       });
       _firewoodCount--;
+
+      _postInteractionTimestamps[postId] = DateTime.now();
+      await _saveInteractionLimits();
+
       notifyListeners();
-      return true;
     } catch (e) {
       print("Error adding firewood: $e");
-      return false;
+      rethrow;
     }
   }
 
-  Future<bool> addWater(String postId) async {
-    if (_waterCount <= 0) return false;
+  Future<void> addWater(String postId) async {
+    if (_waterCount <= 0) throw '물방울이 부족합니다.';
+    if (!canInteract(postId)) throw '5분 뒤에 다시 위로할 수 있습니다.';
+
     try {
       await _firestore.collection('posts').doc(postId).update({
         'comfortCount': FieldValue.increment(1),
       });
       _waterCount--;
+
+      _postInteractionTimestamps[postId] = DateTime.now();
+      await _saveInteractionLimits();
+
       notifyListeners();
-      return true;
     } catch (e) {
       print("Error adding water: $e");
-      return false;
+      rethrow;
     }
   }
 
@@ -582,7 +639,8 @@ class VentingViewModel with ChangeNotifier {
     return null;
   }
 
-  void finishBurning(Persona persona, String text, UserViewModel userVM,
+  void finishBurning(
+      Persona persona, String text, String userId, String nickname,
       {double? angerLevel, String? manualTag}) async {
     final extractedTags = _extractTags(text, manualTag: manualTag);
     final now = DateTime.now();
@@ -596,15 +654,16 @@ class VentingViewModel with ChangeNotifier {
 
       newPublicPost = PublicPost(
         id: postId,
-        authorNickname: userVM.nickname ?? '익명',
+        authorNickname: nickname,
         content: text,
         angerLevel: angerLevel ?? 50,
         timestamp: now,
         imagePath: _pickedImagePath,
         tags: extractedTags,
-        fontName: userVM.selectedFont,
-        authorLevel: userVM.level,
-        authorId: userVM.userId ?? 'anonymous',
+        fontName: '나눔 펜 (손글씨)', // Default or pass font name if needed
+        authorLevel:
+            1, // Default or pass level if crucial, but display uses local usually
+        authorId: userId,
       );
       await docRef.set(newPublicPost.toMap());
     }
@@ -627,9 +686,7 @@ class VentingViewModel with ChangeNotifier {
     _isBurning = false;
     _todaysBurnCount++;
     _pickedImagePath = null;
-    userVM.incrementBurnCount();
-    _firewoodCount++;
-    _waterCount++;
+    // Rewards handled in UI (HomeScreen) based on text length
     notifyListeners();
 
     // AI 위로는 광장 공유하지 않는 글에만 제공
@@ -798,6 +855,37 @@ class VentingViewModel with ChangeNotifier {
     return false;
   }
 
+  void gainItems() {
+    _firewoodCount++;
+    _waterCount++;
+    notifyListeners();
+  }
+
+  Future<Map<String, int>> getMyInteractionStats(String userId) async {
+    int totalFirewood = 0;
+    int totalWater = 0;
+
+    try {
+      final querySnapshot = await _firestore
+          .collection('posts')
+          .where('authorId', isEqualTo: userId)
+          .get();
+
+      for (var doc in querySnapshot.docs) {
+        final data = doc.data();
+        totalFirewood += (data['supportCount'] as int? ?? 0);
+        totalWater += (data['comfortCount'] as int? ?? 0);
+      }
+    } catch (e) {
+      print("Error fetching stats: $e");
+    }
+
+    return {
+      'firewood': totalFirewood,
+      'water': totalWater,
+    };
+  }
+
   Future<bool> addWaterToComment(String postId, String commentId) async {
     if (_waterCount <= 0) return false;
     final postRef = _firestore.collection('posts').doc(postId);
@@ -839,6 +927,27 @@ class VentingViewModel with ChangeNotifier {
   }
 
   void clearAiResponse() {
+    notifyListeners();
+  }
+
+  Future<void> clearAllData() async {
+    _privateHistory.clear();
+    _readPostIds.clear();
+    _blockedUserIds.clear();
+    _reportedPostIds.clear();
+    _postInteractionTimestamps.clear();
+
+    _firewoodCount = 3;
+    _waterCount = 3;
+    _todaysBurnCount = 0;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('private_history');
+    await prefs.remove('read_post_ids');
+    await prefs.remove('blocked_user_ids');
+    await prefs.remove('reported_post_ids');
+    await prefs.remove('interaction_timestamps');
+
     notifyListeners();
   }
 }

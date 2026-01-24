@@ -269,14 +269,15 @@ class SquareScreen extends StatelessWidget {
                                                   true) {
                                             Vibration.vibrate(duration: 50);
                                           }
-                                          if (!await ventingVM
-                                              .addFirewood(post.id)) {
+                                          try {
+                                            await ventingVM
+                                                .addFirewood(post.id);
+                                          } catch (e) {
                                             if (!context.mounted) return;
                                             ScaffoldMessenger.of(context)
                                                 .showSnackBar(
-                                              const SnackBar(
-                                                  content: Text(
-                                                      '장작이 부족합니다! 감정을 태워 충전하세요.')),
+                                              SnackBar(
+                                                  content: Text(e.toString())),
                                             );
                                           }
                                         },
@@ -292,14 +293,14 @@ class SquareScreen extends StatelessWidget {
                                                   true) {
                                             Vibration.vibrate(duration: 50);
                                           }
-                                          if (!await ventingVM
-                                              .addWater(post.id)) {
+                                          try {
+                                            await ventingVM.addWater(post.id);
+                                          } catch (e) {
                                             if (!context.mounted) return;
                                             ScaffoldMessenger.of(context)
                                                 .showSnackBar(
-                                              const SnackBar(
-                                                  content: Text(
-                                                      '물이 부족합니다! 감정을 태워 충전하세요.')),
+                                              SnackBar(
+                                                  content: Text(e.toString())),
                                             );
                                           }
                                         },
@@ -420,19 +421,30 @@ class SquareScreen extends StatelessWidget {
                   child: const Text('취소'),
                 ),
                 TextButton(
-                  onPressed: () {
+                  onPressed: () async {
                     // Reporter ID needed? UserVM is available via Provider in context usually,
                     // but we can pass it or just use "anonymous" if needed.
                     // Ideally pass UserViewModel too. Assuming VentingVM handles it or we pass a placeholder.
                     // Let's pass 'reporter' string for now or fetch UserVM properly.
                     final userVM =
                         Provider.of<UserViewModel>(context, listen: false);
-                    ventingVM.reportPost(
-                        post.id, selectedReason, userVM.userId ?? 'anonymous');
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('신고가 접수되었습니다.')),
-                    );
+                    try {
+                      await ventingVM.reportPost(post.id, selectedReason,
+                          userVM.userId ?? 'anonymous');
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('신고가 접수되었습니다.')),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(e.toString())),
+                        );
+                      }
+                    }
                   },
                   child: const Text('신고', style: TextStyle(color: Colors.red)),
                 ),

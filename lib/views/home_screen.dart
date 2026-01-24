@@ -148,10 +148,30 @@ class _HomeScreenState extends State<HomeScreen>
           ventingVM.finishBurning(
             userVM.selectedPersona,
             text,
-            userVM,
-            angerLevel: _angerLevel,
-            manualTag: _selectedTag,
+            userVM.userId ?? 'anonymous',
+            userVM.nickname ?? '익명',
           );
+
+          // 4. Update Level & Items (Anti-Abuse: Only if length >= 20)
+          if (text.trim().length >= 20) {
+            userVM.addPoints(1);
+            ventingVM.gainItems();
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('🔥 감정을 태우고 경험치와 아이템을 획득했습니다!'),
+                  backgroundColor: Color(0xFFFF4D00),
+                ),
+              );
+            }
+          } else {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                    content: Text('감정이 태워졌습니다! (20자 이상 작성 시 보상 획득)')),
+              );
+            }
+          }
 
           _textController.clear();
           setState(() {
@@ -373,12 +393,15 @@ class _HomeScreenState extends State<HomeScreen>
                 Text('Lv.${userVM.level}',
                     style: const TextStyle(
                         fontSize: 12, color: Color(0xFFFF4D00))),
+                const SizedBox(width: 4),
+                Text('(${userVM.expString})',
+                    style: const TextStyle(fontSize: 10, color: Colors.grey)),
                 const SizedBox(width: 8),
                 Expanded(
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
-                      value: userVM.expProgress / 5,
+                      value: userVM.levelProgress,
                       backgroundColor: Colors.grey[800],
                       color: const Color(0xFFFF4D00),
                       minHeight: 4,

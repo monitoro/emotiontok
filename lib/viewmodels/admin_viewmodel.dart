@@ -114,13 +114,12 @@ class AdminViewModel with ChangeNotifier {
         }
       }
 
-      _reportedPosts = groupedReports.values.toList();
+      _reportedPosts = groupedReports.values
+          .where((item) => item['isDeleted'] != true)
+          .toList();
 
-      // Sort: Not deleted first, then by count descending
+      // Sort: by count descending
       _reportedPosts.sort((a, b) {
-        if (a['isDeleted'] != b['isDeleted']) {
-          return a['isDeleted'] ? 1 : -1; // Deleted items go to bottom
-        }
         return b['reportCount'].compareTo(a['reportCount']);
       });
     } catch (e) {
@@ -135,14 +134,9 @@ class AdminViewModel with ChangeNotifier {
     try {
       await _firestore.collection('posts').doc(postId).delete();
 
-      // Update local state
-      final index =
-          _reportedPosts.indexWhere((item) => item['postId'] == postId);
-      if (index != -1) {
-        _reportedPosts[index]['content'] = '(삭제된 게시글입니다)';
-        _reportedPosts[index]['isDeleted'] = true;
-        notifyListeners();
-      }
+      // Update local state - Remove from list
+      _reportedPosts.removeWhere((item) => item['postId'] == postId);
+      notifyListeners();
     } catch (e) {
       print('Error deleting post: $e');
       rethrow;

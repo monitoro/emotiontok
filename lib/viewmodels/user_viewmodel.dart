@@ -112,14 +112,37 @@ class UserViewModel with ChangeNotifier {
     _isBiometricEnabled = prefs.getBool('isBiometricEnabled') ?? false;
     _selectedFont = prefs.getString('selectedFont') ?? '나눔 펜 (손글씨)';
     _isLoggedIn = _nickname != null;
+    _isAdmin = prefs.getBool('is_admin') ?? false;
+    notifyListeners();
+  }
+
+  bool _isAdmin = false;
+  bool get isAdmin => _isAdmin;
+
+  Future<bool> verifyAdminPassword(String input) async {
+    // Hardcoded simple password for now.
+    // In production, this should be more secure or server-validated.
+    const adminPassword = "admin1234";
+
+    if (input == adminPassword) {
+      _isAdmin = true;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('is_admin', true);
+      notifyListeners();
+      return true;
+    }
+    return false;
+  }
+
+  Future<void> addPoints(int amount) async {
+    _totalBurnCount += amount;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('total_burn_count', _totalBurnCount);
     notifyListeners();
   }
 
   Future<void> incrementBurnCount() async {
-    _totalBurnCount++;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('total_burn_count', _totalBurnCount);
-    notifyListeners();
+    await addPoints(1);
   }
 
   Future<void> setNickname(String name) async {
@@ -212,5 +235,22 @@ class UserViewModel with ChangeNotifier {
     final now = DateTime.now().millisecondsSinceEpoch;
     final random = DateTime.now().microsecond; // Simple random seed
     return 'user_${now}_$random';
+  }
+
+  Future<void> resetAllData() async {
+    _nickname = null;
+    _pin = null;
+    _selectedPersona = Persona.empathy;
+    _isBgmOn = true;
+    _isSfxOn = true;
+    _isVibrationOn = true;
+    _isBiometricEnabled = false;
+    _totalBurnCount = 0;
+    _selectedFont = '나눔 펜 (손글씨)';
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+
+    notifyListeners();
   }
 }

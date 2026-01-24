@@ -49,7 +49,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
       body: Column(
         children: [
           _buildCalendar(ventingVM),
-          _buildKeywordStats(ventingVM),
+          Consumer<UserViewModel>(
+            builder: (context, userVM, child) {
+              return _buildStatSummary(ventingVM, userVM);
+            },
+          ),
           const Divider(color: Colors.white10),
           Expanded(
             child: _buildPostList(ventingVM),
@@ -113,28 +117,64 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
-  Widget _buildKeywordStats(VentingViewModel ventingVM) {
-    final keywords = ventingVM.topKeywords;
-    if (keywords.isEmpty) return const SizedBox.shrink();
+  Widget _buildStatSummary(VentingViewModel ventingVM, UserViewModel userVM) {
+    return FutureBuilder<Map<String, int>>(
+      future: ventingVM.getMyInteractionStats(userVM.userId ?? ''),
+      builder: (context, snapshot) {
+        final firewood = snapshot.data?['firewood'] ?? 0;
+        final water = snapshot.data?['comfortCount'] ??
+            snapshot.data?['water'] ??
+            0; // Check key consistency since I used 'water' in VM
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('가장 많이 비운 키워드',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: keywords.entries
-                .map((e) => _KeywordChip(
-                    label: e.key, count: e.value, color: _getTagColor(e.key)))
-                .toList(),
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1E1E),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white10),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildStatItem('태운 감정', '${userVM.totalBurnCount}',
+                    Icons.local_fire_department, const Color(0xFFFF4D00)),
+                _buildContainerLine(),
+                _buildStatItem(
+                    '받은 장작', '$firewood', Icons.fireplace, Colors.orange),
+                _buildContainerLine(),
+                _buildStatItem('받은 물', '$water', Icons.water_drop, Colors.blue),
+              ],
+            ),
           ),
-        ],
-      ),
+        );
+      },
+    );
+  }
+
+  Widget _buildContainerLine() {
+    return Container(
+      height: 40,
+      width: 1,
+      color: Colors.white10,
+    );
+  }
+
+  Widget _buildStatItem(
+      String label, String value, IconData icon, Color color) {
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 24),
+        const SizedBox(height: 8),
+        Text(value,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold)),
+        const SizedBox(height: 4),
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+      ],
     );
   }
 
@@ -344,32 +384,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ),
         );
       },
-    );
-  }
-}
-
-class _KeywordChip extends StatelessWidget {
-  final String label;
-  final int count;
-  final Color color;
-
-  const _KeywordChip(
-      {required this.label, required this.count, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Text(
-        '#$label $count회',
-        style:
-            TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12),
-      ),
     );
   }
 }
