@@ -152,21 +152,35 @@ class UserViewModel with ChangeNotifier {
     notifyListeners();
   }
 
+  bool _justRecharged = false;
+
   Future<void> _checkDailyLogin(SharedPreferences prefs) async {
     final now = DateTime.now();
     final todayStr = "${now.year}-${now.month}-${now.day}";
 
     if (_lastLoginDate != todayStr) {
       if (_lastLoginDate != null) {
-        _dailyComfortCount += 5;
+        _dailyComfortCount += 10; // Recharge 10
+        _justRecharged = true; // Set flag
       } else {
-        // First login
+        // First login ever - maybe give some initial bonus? Current logic does nothing specific.
+        // Let's give initial 10 too? No, keep existing behavior or as requested.
+        // User said: "When logging in every day... today's hearts are recharged".
+        // Usually first install starts with 5 (default). Let's stick to update logic for existing users.
       }
 
       _lastLoginDate = todayStr;
       await prefs.setString('last_login_date', todayStr);
       await prefs.setInt('daily_comfort_count', _dailyComfortCount);
     }
+  }
+
+  bool get isJustRecharged => _justRecharged;
+
+  void consumeRechargeFlag() {
+    _justRecharged = false;
+    // notifyListeners(); // Not strictly needed if consumed in build, but good practice.
+    // However, calling notifyListeners during build might error.
   }
 
   Future<bool> consumeComfortCount() async {

@@ -179,38 +179,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ),
           const Divider(color: Colors.white10),
-          if (userVM.isAdmin)
-            _buildSection(
-              title: '관리자',
-              children: [
-                _buildSettingTile(
-                  icon: Icons.admin_panel_settings,
-                  title: '관리자 모드',
-                  subtitle: '시드 데이터 생성 및 관리',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const AdminScreen()),
-                  ),
-                  textColor: Colors.orange,
+          _buildSection(
+            title: '관리자',
+            children: [
+              _buildSettingTile(
+                icon: Icons.admin_panel_settings,
+                title: '관리자 모드',
+                subtitle: '시드 데이터 생성 및 관리',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AdminScreen()),
                 ),
-                _buildSettingTile(
-                  icon: Icons.favorite,
-                  title: '위로 횟수 100회 충전',
-                  subtitle: '테스트용: 마음의 위로 100회 추가',
-                  onTap: () async {
-                    await userVM.addComfortCounts(100);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                            content: Text(
-                                '위로 횟수가 100회 충전되었습니다. (현재: ${userVM.dailyComfortCount})')),
-                      );
-                    }
-                  },
-                  textColor: Colors.pinkAccent,
-                ),
-              ],
-            ),
+                textColor: Colors.orange,
+              ),
+            ],
+          ),
           const SizedBox(height: 32),
         ],
       ),
@@ -269,11 +252,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4), // Reduced padding
           child: Text(
             title,
             style: const TextStyle(
-              fontSize: 14,
+              fontSize: 12, // Reduced from 14
               fontWeight: FontWeight.bold,
               color: Colors.grey,
             ),
@@ -292,12 +275,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     Color? textColor,
   }) {
     return ListTile(
-      leading: Icon(icon, color: textColor ?? const Color(0xFFFF4D00)),
-      title: Text(title, style: TextStyle(color: textColor ?? Colors.white)),
+      dense: true, // Make compact
+      visualDensity: VisualDensity.compact, // Reduce vertical space
+      contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16, vertical: 0), // Use default but tighter
+      leading: Icon(icon,
+          color: textColor ?? const Color(0xFFFF4D00),
+          size: 20), // Reduced size
+      title: Text(title,
+          style: TextStyle(
+              color: textColor ?? Colors.white, fontSize: 14)), // Reduced font
       subtitle: Text(subtitle,
-          style: const TextStyle(color: Colors.grey, fontSize: 12)),
+          style: const TextStyle(
+              color: Colors.grey, fontSize: 11)), // Reduced font
       trailing: onTap != null
-          ? const Icon(Icons.chevron_right, color: Colors.grey)
+          ? const Icon(Icons.chevron_right, color: Colors.grey, size: 16)
           : null,
       onTap: onTap,
     );
@@ -311,14 +303,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required ValueChanged<bool> onChanged,
   }) {
     return ListTile(
-      leading: Icon(icon, color: const Color(0xFFFF4D00)),
-      title: Text(title, style: const TextStyle(color: Colors.white)),
+      dense: true, // Make compact
+      visualDensity: VisualDensity.compact,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+      leading:
+          Icon(icon, color: const Color(0xFFFF4D00), size: 20), // Reduced size
+      title: Text(title,
+          style: const TextStyle(
+              color: Colors.white, fontSize: 14)), // Reduced font
       subtitle: Text(subtitle,
-          style: const TextStyle(color: Colors.grey, fontSize: 12)),
+          style: const TextStyle(
+              color: Colors.grey, fontSize: 11)), // Reduced font
       trailing: Switch(
         value: value,
         activeColor: const Color(0xFFFF4D00),
         onChanged: onChanged,
+        materialTapTargetSize: MaterialTapTargetSize
+            .shrinkWrap, // Reduce switch touch area padding visually
       ),
     );
   }

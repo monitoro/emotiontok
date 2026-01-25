@@ -59,9 +59,24 @@ class _HomeScreenState extends State<HomeScreen>
     _sfxPlayer = AudioPlayer();
     _risingSfxPlayer = AudioPlayer();
 
+    // Check daily recharge
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final userVM = Provider.of<UserViewModel>(context, listen: false);
+      if (userVM.isJustRecharged) {
+        _showRechargeToast(context, userVM.dailyComfortCount);
+        userVM.consumeRechargeFlag();
+      }
+    });
+
     // Initialize persona from User Settings
     final userVM = Provider.of<UserViewModel>(context, listen: false);
     _selectedPersonaStr = userVM.defaultPersonaStr;
+
+    // Validate selection against current UI list (removes deprecated '공감' if present)
+    const validPersonas = ['전투', '유머', '팩폭', '랜덤'];
+    if (!validPersonas.contains(_selectedPersonaStr)) {
+      _selectedPersonaStr = '전투';
+    }
 
     _risingSfxPlayer.setReleaseMode(ReleaseMode.loop); // Loop for rising effect
 
@@ -80,6 +95,21 @@ class _HomeScreenState extends State<HomeScreen>
           }
         }
       });
+  }
+
+  void _showRechargeToast(BuildContext context, int totalCount) {
+    final overlay = Overlay.of(context);
+    late OverlayEntry entry;
+
+    entry = OverlayEntry(
+      builder: (context) => _FadingToast(
+          totalCount: totalCount,
+          onCompleted: () {
+            entry.remove();
+          }),
+    );
+
+    overlay.insert(entry);
   }
 
   @override
@@ -151,11 +181,12 @@ class _HomeScreenState extends State<HomeScreen>
       context: context,
       barrierDismissible: false,
       barrierColor: Colors.black.withOpacity(0.8), // Darken background
-      builder: (context) => Center(
+      builder: (dialogContext) => Center(
           child: PixelShredAnimation(
         delay: Duration(milliseconds: (calculatedDelaySeconds * 1000).toInt()),
         onComplete: () async {
-          Navigator.of(context).pop(); // Close burning dialog
+          Navigator.of(dialogContext)
+              .pop(); // Close burning dialog using dialogContext
 
           // Delay unfocus to override any focus restoration
           await Future.delayed(const Duration(milliseconds: 150));
@@ -468,49 +499,80 @@ class _HomeScreenState extends State<HomeScreen>
         onTap: () => FocusScope.of(context).unfocus(),
         child: SingleChildScrollView(
           child: Padding(
-            padding: const EdgeInsets.all(24.0),
+            padding:
+                const EdgeInsets.fromLTRB(24, 0, 24, 24), // Reduced top padding
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 16),
+                // SizedBox(height: 16) removed
 
-                // Removed misplaced code from here.
-
-                // Persona Selector
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: ['랜덤', '전투', '공감', '팩폭', '유머'].map((p) {
-                      final isSelected = _selectedPersonaStr == p;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: ChoiceChip(
-                          label: Text(p),
-                          selected: isSelected,
-                          onSelected: (selected) {
-                            if (selected)
-                              setState(() => _selectedPersonaStr = p);
-                          },
-                          selectedColor: const Color(0xFFFF4D00),
-                          backgroundColor: Colors.white10,
-                          labelStyle: TextStyle(
-                            color: isSelected ? Colors.white : Colors.grey,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            side: BorderSide(
-                              color: isSelected
-                                  ? const Color(0xFFFF4D00)
-                                  : Colors.transparent,
-                            ),
-                          ),
-                          showCheckmark: false,
+                // Persona Selector & Comfort Count Row
+                Row(
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: ['전투', '유머', '팩폭', '랜덤'].map((p) {
+                            final isSelected = _selectedPersonaStr == p;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ChoiceChip(
+                                label: Text(p),
+                                selected: isSelected,
+                                onSelected: (selected) {
+                                  if (selected)
+                                    setState(() => _selectedPersonaStr = p);
+                                },
+                                selectedColor: const Color(0xFFFF4D00),
+                                backgroundColor: Colors.white10,
+                                labelStyle: TextStyle(
+                                  color:
+                                      isSelected ? Colors.white : Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                  side: BorderSide(
+                                    color: isSelected
+                                        ? const Color(0xFFFF4D00)
+                                        : Colors.transparent,
+                                  ),
+                                ),
+                                showCheckmark: false,
+                              ),
+                            );
+                          }).toList(),
                         ),
-                      );
-                    }).toList(),
-                  ),
+                      ),
+                    ),
+
+                    // Comfort Count Badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white10,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white24),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.favorite,
+                              size: 14, color: Colors.pinkAccent),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${userVM.dailyComfortCount}',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
 
@@ -684,6 +746,118 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                       ),
                     ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FadingToast extends StatefulWidget {
+  final int totalCount;
+  final VoidCallback onCompleted;
+
+  const _FadingToast({required this.totalCount, required this.onCompleted});
+
+  @override
+  State<_FadingToast> createState() => _FadingToastState();
+}
+
+class _FadingToastState extends State<_FadingToast>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+
+    _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeIn,
+    ));
+
+    _startAnimation();
+  }
+
+  void _startAnimation() async {
+    await _controller.forward(); // Fade In
+    await Future.delayed(const Duration(seconds: 3)); // Wait
+    if (mounted) {
+      await _controller.reverse(); // Fade Out
+      widget.onCompleted();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: MediaQuery.of(context).size.height * 0.2,
+      left: 0,
+      right: 0,
+      child: FadeTransition(
+        opacity: _opacity,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 40),
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.9),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                  color: Colors.pinkAccent.withOpacity(0.5), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.pinkAccent.withOpacity(0.2),
+                    blurRadius: 20,
+                    spreadRadius: 2)
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.volunteer_activism,
+                    color: Colors.pinkAccent, size: 48),
+                const SizedBox(height: 16),
+                const Text(
+                  "당신을 위로해줄\n오늘분의 하트가 충전됩니다",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.pinkAccent.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    "누적된 하트 : ${widget.totalCount}개",
+                    style: const TextStyle(
+                        color: Colors.pinkAccent,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold),
                   ),
                 ),
               ],

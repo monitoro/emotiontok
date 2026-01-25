@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/admin_viewmodel.dart';
 import '../viewmodels/venting_viewmodel.dart';
+import '../viewmodels/user_viewmodel.dart';
 import 'post_detail_screen.dart';
 
 class AdminScreen extends StatelessWidget {
@@ -61,6 +62,39 @@ class AdminScreen extends StatelessWidget {
                                 _buildGenerateButton(context, adminVM, 5),
                                 const SizedBox(height: 16),
                                 _buildGenerateButton(context, adminVM, 10),
+                                const SizedBox(height: 32),
+                                const Divider(
+                                    color: Colors.white24, height: 32),
+                                Consumer<UserViewModel>(
+                                  builder: (context, userVM, child) {
+                                    return SizedBox(
+                                      width: double.infinity,
+                                      child: ElevatedButton.icon(
+                                        onPressed: () async {
+                                          await userVM.addComfortCounts(100);
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              SnackBar(
+                                                  content: Text(
+                                                      '위로 횟수 충전 완료! (현재: ${userVM.dailyComfortCount})')),
+                                            );
+                                          }
+                                        },
+                                        icon: const Icon(Icons.favorite,
+                                            color: Colors.white),
+                                        label: Text(
+                                            '위로 횟수 100회 충전 (${userVM.dailyComfortCount})'),
+                                        style: ElevatedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 16),
+                                          backgroundColor: Colors.pinkAccent,
+                                          foregroundColor: Colors.white,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
                               ],
                             ),
                           const SizedBox(height: 24),

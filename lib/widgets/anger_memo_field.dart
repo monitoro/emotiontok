@@ -148,7 +148,7 @@ class _AngerMemoFieldState extends State<AngerMemoField> {
                   userVM.selectedFont,
                   textStyle: TextStyle(
                     color: textColor,
-                    fontSize: 20, // Slightly larger for handwriting
+                    fontSize: 16, // Reduced from 20
                     height: 1.5,
                   ),
                 ),
@@ -180,7 +180,7 @@ class _PaperLinePainter extends CustomPainter {
       ..color = lineColor
       ..strokeWidth = 1.0;
 
-    double lineHeight = 27.0; // Approximation of text height * 1.5
+    double lineHeight = 24.0; // Reduced from 27.0 (16 * 1.5)
     double offsetY = 40.0; // Initial padding
 
     while (offsetY < size.height) {

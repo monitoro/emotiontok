@@ -77,7 +77,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   Widget _buildCalendar(VentingViewModel ventingVM) {
     return Container(
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.all(8), // Reduced from 16
       decoration: BoxDecoration(
         color: const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(20),
@@ -92,7 +92,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         onDaySelected: (selectedDay, focusedDay) {
           ventingVM.setSelectedCalendarDate(selectedDay);
           setState(() {
-            _expandedIndex = null; // Will be reset in build
+            _expandedIndex = null;
           });
         },
         onFormatChanged: (format) {
@@ -131,7 +131,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   Widget _buildLevelSection(UserViewModel userVM) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      margin: const EdgeInsets.symmetric(
+          horizontal: 24, vertical: 2), // Reduced vert from 8
       child: Column(
         children: [
           Row(
@@ -142,20 +143,19 @@ class _LibraryScreenState extends State<LibraryScreen> {
                       color: Color(0xFFFF4D00),
                       fontSize: 16,
                       fontWeight: FontWeight.bold)),
-              // Total XP Text Removed as requested
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4), // Reduced from 8
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: LinearProgressIndicator(
               value: userVM.levelProgress,
               backgroundColor: Colors.white10,
               color: const Color(0xFFFF4D00),
-              minHeight: 10,
+              minHeight: 6, // Reduced from 10
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2), // Reduced from 4
           Align(
             alignment: Alignment.centerRight,
             child: Text(
@@ -174,21 +174,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
       builder: (context, snapshot) {
         final firewood = snapshot.data?['firewood'] ?? 0;
         final water = snapshot.data?['water'] ?? 0;
-        final receivedPoints = firewood + water;
-
-        // Update UserVM received points so logic is synced
-        // Note: This causes rebuild during build, but using addPostFrameCallback is better
-        // or just rely on display here. For display, we calculate total.
-
+        // final receivedPoints = firewood + water; // Unused
         final writingPoints = userVM.writingPoints;
 
         return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(
+              horizontal: 16, vertical: 4), // Reduced vert from 8
           child: Column(
             children: [
-              // Point Breakdown Card
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(
+                    vertical: 10, horizontal: 16), // Reduced vert pad from 16
                 decoration: BoxDecoration(
                   color: const Color(0xFF1E1E1E),
                   borderRadius: BorderRadius.circular(16),
@@ -197,8 +193,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 child: Column(
                   children: [
                     const Text('경험치 획득 내역',
-                        style: TextStyle(color: Colors.white70, fontSize: 14)),
-                    const SizedBox(height: 16),
+                        style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12)), // Reduced font 14->12
+                    const SizedBox(height: 8), // Reduced from 16
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
@@ -212,7 +210,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                             '받은 물', '$water', Icons.water_drop, Colors.blue),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 6), // Reduced from 12
                   ],
                 ),
               ),
@@ -225,7 +223,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   Widget _buildContainerLine() {
     return Container(
-      height: 40,
+      height: 30, // Reduced from 40
       width: 1,
       color: Colors.white10,
     );
@@ -235,15 +233,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
       String label, String value, IconData icon, Color color) {
     return Column(
       children: [
-        Icon(icon, color: color, size: 24),
-        const SizedBox(height: 8),
+        Icon(icon, color: color, size: 20), // Reduced from 24
+        const SizedBox(height: 4), // Reduced from 8
         Text(value,
             style: const TextStyle(
                 color: Colors.white,
-                fontSize: 18,
+                fontSize: 16, // Reduced from 18
                 fontWeight: FontWeight.bold)),
-        const SizedBox(height: 4),
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        const SizedBox(height: 2), // Reduced from 4
+        Text(label,
+            style: const TextStyle(
+                color: Colors.grey, fontSize: 11)), // Reduced from 12
       ],
     );
   }
