@@ -5,7 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import '../services/ai_service.dart';
 import '../viewmodels/user_viewmodel.dart';
 
 enum VentingMode { text, voice }
@@ -821,6 +820,38 @@ class VentingViewModel with ChangeNotifier {
       await _firestore.collection('posts').doc(postId).delete();
     } catch (e) {
       print("Error deleting post: $e");
+    }
+  }
+
+  // Batch delete for Admin
+  Future<void> deletePublicPosts(List<String> postIds) async {
+    if (postIds.isEmpty) return;
+    try {
+      final batch = _firestore.batch();
+      for (var id in postIds) {
+        batch.delete(_firestore.collection('posts').doc(id));
+      }
+      await batch.commit();
+
+      // Optimistically remove locally to reflect UI instantly
+      _publicPosts.removeWhere((p) => postIds.contains(p.id));
+      notifyListeners();
+    } catch (e) {
+      print("Error batch deleting posts: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> deletePrivatePost(String postId) async {
+    try {
+      _privateHistory.removeWhere((p) => p.id == postId);
+      await _savePrivateHistory();
+
+      // If the deleted post was selected in calendar view, we might need to refresh
+      // But _myPostsForSelectedDate is a getter, so notifyListeners should handle it.
+      notifyListeners();
+    } catch (e) {
+      print("Error deleting private post: $e");
     }
   }
 

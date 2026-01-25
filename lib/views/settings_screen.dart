@@ -42,6 +42,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 subtitle: userVM.defaultPersonaStr,
                 onTap: () => _showDefaultPersonaDialog(context, userVM),
               ),
+              _buildSettingTile(
+                icon: Icons.auto_awesome,
+                title: 'AI 개인화 설정',
+                subtitle: _getCommunityToneLabel(userVM.communityTone),
+                onTap: () => _showAIPersonalizationDialog(context, userVM),
+              ),
             ],
           ),
           const Divider(color: Colors.white10),
@@ -324,17 +330,125 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  String _getPersonaName(Persona persona) {
-    switch (persona) {
-      case Persona.fighter:
-        return '전투형 - 함께 싸워드립니다';
-      case Persona.empathy:
-        return '공감형 - 따뜻하게 위로합니다';
-      case Persona.factBomb:
-        return '팩폭형 - 현실적으로 조언합니다';
-      case Persona.humor:
-        return '유머형 - 재치있게 풀어드립니다';
+  String _getCommunityToneLabel(String tone) {
+    switch (tone) {
+      case 'dc_inside':
+        return '디시인사이드 스타일';
+      case 'theqoo':
+        return '더쿠 스타일';
+      case 'fmkorea':
+        return '에펨코리아 스타일';
+      case 'ruliweb':
+        return '루리웹 스타일';
+      default:
+        return '사용 안함 (기본)';
     }
+  }
+
+  void _showAIPersonalizationDialog(
+      BuildContext context, UserViewModel userVM) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF2A2A2A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text(
+                  'AI 개인화 설정',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold),
+                ),
+              ),
+              ListTile(
+                leading:
+                    const Icon(Icons.disabled_by_default, color: Colors.grey),
+                title: const Text('사용 안함 (기본)',
+                    style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  userVM.setCommunityTone('none');
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('AI 개인화가 해제되었습니다.')),
+                  );
+                },
+              ),
+              ListTile(
+                leading:
+                    const Icon(Icons.person_outline, color: Color(0xFFFF4D00)),
+                title: const Text('개인 페르소나 설정',
+                    style: TextStyle(color: Colors.white)),
+                subtitle: const Text('자주 방문하는 커뮤니티 스타일을 적용합니다',
+                    style: TextStyle(color: Colors.grey, fontSize: 12)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showCommunitySelectionDialog(context, userVM);
+                },
+              ),
+              if (userVM.communityTone != 'none')
+                ListTile(
+                  leading: const Icon(Icons.refresh, color: Colors.orange),
+                  title: const Text('개인 페르소나 재설정',
+                      style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showCommunitySelectionDialog(context, userVM);
+                  },
+                ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showCommunitySelectionDialog(
+      BuildContext context, UserViewModel userVM) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        title: const Text('주로 방문하는 커뮤니티는?',
+            style: TextStyle(color: Colors.white, fontSize: 18)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildCommunityOption(context, userVM, '디시인사이드', 'dc_inside'),
+            _buildCommunityOption(context, userVM, '더쿠', 'theqoo'),
+            _buildCommunityOption(context, userVM, '에펨코리아', 'fmkorea'),
+            _buildCommunityOption(context, userVM, '루리웹', 'ruliweb'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCommunityOption(
+      BuildContext context, UserViewModel userVM, String label, String value) {
+    return RadioListTile<String>(
+      value: value,
+      groupValue: userVM.communityTone,
+      title: Text(label, style: const TextStyle(color: Colors.white)),
+      activeColor: const Color(0xFFFF4D00),
+      onChanged: (newValue) {
+        if (newValue != null) {
+          userVM.setCommunityTone(newValue);
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('$label 스타일이 적용되었습니다!')),
+          );
+        }
+      },
+    );
   }
 
   void _showNicknameDialog(BuildContext context, UserViewModel userVM) {

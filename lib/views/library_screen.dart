@@ -24,7 +24,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Widget build(BuildContext context) {
     print('DEBUG: LibraryScreen.build called');
     final ventingVM = Provider.of<VentingViewModel>(context);
-    final userVM = Provider.of<UserViewModel>(context);
 
     final posts = ventingVM.myPostsForSelectedDate;
     print(
@@ -322,7 +321,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                             DateFormat('HH:mm').format(post.timestamp),
                             style: const TextStyle(
                                 color: Color(0xFFFF4D00),
-                                fontSize: 12,
+                                fontSize: 11, // Reduced size
                                 fontWeight: FontWeight.bold),
                           ),
                           Container(
@@ -335,7 +334,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
                             child: Text(
                               '분노 ${post.angerLevel.toInt()}%',
                               style: const TextStyle(
-                                  color: Colors.red, fontSize: 10),
+                                  color: Colors.red,
+                                  fontSize: 9), // Reduced size
                             ),
                           ),
                         ],
@@ -348,202 +348,188 @@ class _LibraryScreenState extends State<LibraryScreen> {
                               .map((tag) => Text('#$tag',
                                   style: TextStyle(
                                       color: _getTagColor(tag).withOpacity(0.7),
-                                      fontSize: 10,
+                                      fontSize: 9, // Reduced size
                                       fontWeight: FontWeight.bold)))
                               .toList(),
                         ),
                         const SizedBox(height: 4),
                       ],
-                      // Chat History Layout
-                      // Chat History Layout
-                      if (post.chatHistory.isNotEmpty) ...[
-                        ...post.chatHistory.map((msg) {
-                          final isUser = msg['role'] == 'user';
-                          return Align(
-                            alignment: isUser
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
-                            child: isUser
-                                ? // User Bubble
-                                Container(
-                                    margin: const EdgeInsets.only(
-                                        bottom: 12, left: 40),
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: const BoxDecoration(
-                                      color: Color(0xFFFF4D00),
-                                      borderRadius: BorderRadius.only(
-                                        topLeft: Radius.circular(12),
-                                        topRight: Radius.circular(12),
-                                        bottomLeft: Radius.circular(12),
-                                        bottomRight: Radius.circular(2),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      msg['content'] ?? '',
+                      // Chat History Layout / Content
+                      // Logic: Treat first line as title (Bold)
+                      Builder(builder: (context) {
+                        final content = post.content;
+                        final splitIndex = content.indexOf('\n');
+                        String title = '';
+                        String body = '';
+
+                        if (splitIndex != -1) {
+                          title = content.substring(0, splitIndex);
+                          body = content.substring(splitIndex + 1).trim();
+                        } else {
+                          title = content;
+                        }
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // User Bubble (Title + Body)
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: Container(
+                                margin:
+                                    const EdgeInsets.only(bottom: 12, left: 40),
+                                padding: const EdgeInsets.all(12),
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFFF4D00),
+                                  borderRadius: BorderRadius.only(
+                                    topLeft: Radius.circular(12),
+                                    topRight: Radius.circular(12),
+                                    bottomLeft: Radius.circular(12),
+                                    bottomRight: Radius.circular(2),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Title (First line)
+                                    Text(
+                                      title,
                                       style: AppFonts.getFont(
                                         Provider.of<UserViewModel>(context)
                                             .selectedFont,
                                         textStyle: const TextStyle(
-                                          fontSize: 15,
-                                          height: 1.5,
+                                          fontSize:
+                                              16, // Bold Title Size (Still reduced from original 18-20ish probably)
+                                          fontWeight: FontWeight.bold,
+                                          height: 1.4,
                                           color: Colors.white,
                                         ),
                                       ),
                                     ),
-                                  )
-                                : // AI Bubble
-                                Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const CircleAvatar(
-                                        radius: 14,
-                                        backgroundColor: Colors.white10,
-                                        child: Icon(Icons.auto_awesome,
-                                            size: 16, color: Color(0xFFFF4D00)),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Flexible(
-                                        child: Container(
-                                          padding: const EdgeInsets.all(12),
-                                          decoration: const BoxDecoration(
-                                            color: Colors.white10,
-                                            borderRadius: BorderRadius.only(
-                                              topLeft: Radius.circular(12),
-                                              topRight: Radius.circular(12),
-                                              bottomLeft: Radius.circular(2),
-                                              bottomRight: Radius.circular(12),
-                                            ),
-                                          ),
-                                          child: Text(
-                                            msg['content'] ?? '',
-                                            style: const TextStyle(
-                                              fontSize: 14,
-                                              color: Colors.white,
-                                              height: 1.4,
-                                            ),
+                                    if (body.isNotEmpty) ...[
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        body,
+                                        style: AppFonts.getFont(
+                                          Provider.of<UserViewModel>(context)
+                                              .selectedFont,
+                                          textStyle: const TextStyle(
+                                            fontSize: 14, // Reduced Body Size
+                                            height: 1.5,
+                                            color: Colors.white,
                                           ),
                                         ),
                                       ),
-                                    ],
-                                  ),
-                          );
-                        }),
-                      ] else ...[
-                        // Legacy Fallback
-                        // 1. User Message (Right)
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: Container(
-                            margin: const EdgeInsets.only(bottom: 12, left: 40),
-                            padding: const EdgeInsets.all(12),
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFFF4D00),
-                              borderRadius: BorderRadius.only(
-                                topLeft: Radius.circular(12),
-                                topRight: Radius.circular(12),
-                                bottomLeft: Radius.circular(12),
-                                bottomRight: Radius.circular(2),
-                              ),
-                            ),
-                            child: Text(
-                              post.content,
-                              style: AppFonts.getFont(
-                                Provider.of<UserViewModel>(context)
-                                    .selectedFont,
-                                textStyle: const TextStyle(
-                                  fontSize: 15,
-                                  height: 1.5,
-                                  color: Colors.white,
+                                    ]
+                                  ],
                                 ),
                               ),
                             ),
-                          ),
-                        ),
 
-                        // 2. AI Response (Left) if exists
-                        if (post.aiResponse != null) ...[
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const CircleAvatar(
-                                  radius: 14,
-                                  backgroundColor: Colors.white10,
-                                  child: Icon(Icons.auto_awesome,
-                                      size: 16, color: Color(0xFFFF4D00)),
-                                ),
-                                const SizedBox(width: 8),
-                                Flexible(
-                                  child: Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: const BoxDecoration(
-                                      color: Colors.white10,
-                                      borderRadius: BorderRadius.only(
-                                        topLeft: Radius.circular(12),
-                                        topRight: Radius.circular(12),
-                                        bottomLeft: Radius.circular(2),
-                                        bottomRight: Radius.circular(12),
+                            // AI Response
+                            if (post.aiResponse != null) ...[
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const CircleAvatar(
+                                      radius: 12, // Reduced
+                                      backgroundColor: Colors.white10,
+                                      child: Icon(Icons.auto_awesome,
+                                          size: 14, color: Color(0xFFFF4D00)),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Flexible(
+                                      child: Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: const BoxDecoration(
+                                          color: Colors.white10,
+                                          borderRadius: BorderRadius.only(
+                                            topLeft: Radius.circular(12),
+                                            topRight: Radius.circular(12),
+                                            bottomLeft: Radius.circular(2),
+                                            bottomRight: Radius.circular(12),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          post.aiResponse!,
+                                          style: const TextStyle(
+                                            fontSize: 13, // Reduced
+                                            color: Colors.white,
+                                            height: 1.4,
+                                          ),
+                                        ),
                                       ),
                                     ),
-                                    child: Text(
-                                      post.aiResponse!,
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.white,
-                                        height: 1.4,
-                                      ),
-                                    ),
-                                  ),
+                                  ],
                                 ),
-                              ],
+                              ),
+                              const SizedBox(height: 12),
+                            ],
+                          ],
+                        );
+                      }),
+
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (post.isPublic) ...[
+                            TextButton.icon(
+                              onPressed: () {
+                                final publicPost =
+                                    ventingVM.getPublicPost(post.id);
+                                if (publicPost != null) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          PostDetailScreen(post: publicPost),
+                                    ),
+                                  );
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content:
+                                            Text('광장에서 삭제되었거나 찾을 수 없는 글입니다.')),
+                                  );
+                                }
+                              },
+                              icon: const Icon(Icons.public,
+                                  size: 14, color: Color(0xFFFF4D00)),
+                              label: const Text('광장에서 보기',
+                                  style: TextStyle(
+                                      color: Color(0xFFFF4D00), fontSize: 11)),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 6),
+                                backgroundColor:
+                                    const Color(0xFFFF4D00).withOpacity(0.1),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8)),
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-                      ],
-
-                      if (post.isPublic) ...[
-                        const SizedBox(height: 12),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton.icon(
-                            onPressed: () {
-                              final publicPost =
-                                  ventingVM.getPublicPost(post.id);
-                              if (publicPost != null) {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        PostDetailScreen(post: publicPost),
-                                  ),
-                                );
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                      content:
-                                          Text('광장에서 삭제되었거나 찾을 수 없는 글입니다.')),
-                                );
-                              }
-                            },
-                            icon: const Icon(Icons.public,
-                                size: 16, color: Color(0xFFFF4D00)),
-                            label: const Text('광장에서 보기',
+                            const SizedBox(width: 8),
+                          ],
+                          TextButton.icon(
+                            onPressed: () =>
+                                _confirmDelete(context, post.id, ventingVM),
+                            icon: const Icon(Icons.delete_outline,
+                                size: 14, color: Colors.grey),
+                            label: const Text('삭제',
                                 style: TextStyle(
-                                    color: Color(0xFFFF4D00), fontSize: 12)),
+                                    color: Colors.grey, fontSize: 11)),
                             style: TextButton.styleFrom(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
-                              backgroundColor:
-                                  const Color(0xFFFF4D00).withOpacity(0.1),
+                                  horizontal: 10, vertical: 6),
+                              backgroundColor: Colors.white10,
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8)),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ],
                   )
                 : Row(
@@ -552,7 +538,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                         DateFormat('HH:mm').format(post.timestamp),
                         style: const TextStyle(
                             color: Colors.grey,
-                            fontSize: 12,
+                            fontSize: 11, // Reduced
                             fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(width: 12),
@@ -561,7 +547,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
                           post.content.replaceAll('\n', ' '),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: Colors.white70),
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 13), // Reduced
                         ),
                       ),
                       const Icon(Icons.keyboard_arrow_down,
@@ -571,6 +558,39 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ),
         );
       },
+    );
+  }
+
+  void _confirmDelete(
+      BuildContext context, String postId, VentingViewModel ventingVM) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: const Text('기록 삭제'),
+        content: const Text('이 감정 기록을 완전히 삭제하시겠습니까?\n삭제된 내용은 복구할 수 없습니다.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context), child: const Text('취소')),
+          TextButton(
+            onPressed: () async {
+              await ventingVM.deletePrivatePost(postId);
+              if (!context.mounted) return;
+              Navigator.pop(context);
+
+              // Reset expanded index if needed, or it might just collapse
+              setState(() {
+                _expandedIndex = null;
+              });
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('기록이 삭제되었습니다.')),
+              );
+            },
+            child: const Text('삭제', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
     );
   }
 }

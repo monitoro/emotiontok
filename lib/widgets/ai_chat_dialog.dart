@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/user_viewmodel.dart';
+import '../viewmodels/venting_viewmodel.dart';
 import '../services/ai_service.dart';
-import '../utils/app_fonts.dart';
 
 class AiChatDialog extends StatefulWidget {
   final String initialUserText;
@@ -110,6 +110,7 @@ class _AiChatDialogState extends State<AiChatDialog> {
     }
 
     final userVM = Provider.of<UserViewModel>(context, listen: false);
+    final ventingVM = Provider.of<VentingViewModel>(context, listen: false);
 
     // Check limits
     if (userVM.dailyComfortCount <= 0) {
@@ -152,8 +153,12 @@ class _AiChatDialogState extends State<AiChatDialog> {
       // If AIService is stateless, it will just respond to the last query.
       // This is acceptable for simple "Comforting".
       // Use getChatResponse with history
-      final response =
-          await AIService.getChatResponse(widget.persona, _messages);
+      final response = await AIService.getChatResponse(
+        widget.persona,
+        _messages,
+        communityTone: userVM.communityTone,
+        recentKeywords: ventingVM.topKeywords.keys.toList(),
+      );
 
       if (mounted) {
         setState(() {

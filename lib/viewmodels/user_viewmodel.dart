@@ -33,6 +33,8 @@ class UserViewModel with ChangeNotifier {
 
   // New: Default Persona (String based to avoid Enum issues if expanded)
   String _defaultPersonaStr = '전투'; // Default to Fighter
+  String _communityTone =
+      'none'; // 'none', 'dc_inside', 'theqoo', 'fmkorea', 'ruliweb'
 
   final LocalAuthentication auth = LocalAuthentication();
 
@@ -51,6 +53,7 @@ class UserViewModel with ChangeNotifier {
 
   int get dailyComfortCount => _dailyComfortCount;
   String get defaultPersonaStr => _defaultPersonaStr;
+  String get communityTone => _communityTone;
 
   // Point System Logic
   int get writingPoints => _writingPoints;
@@ -141,6 +144,7 @@ class UserViewModel with ChangeNotifier {
 
     _selectedFont = prefs.getString('selectedFont') ?? '나눔 펜 (손글씨)';
     _defaultPersonaStr = prefs.getString('default_persona_str') ?? '전투';
+    _communityTone = prefs.getString('community_tone') ?? 'none';
 
     _isLoggedIn = _nickname != null;
     _isAdmin = prefs.getBool('is_admin') ?? false;
@@ -268,6 +272,13 @@ class UserViewModel with ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setCommunityTone(String tone) async {
+    _communityTone = tone;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('community_tone', tone);
+    notifyListeners();
+  }
+
   void login() {
     _isLoggedIn = true;
     notifyListeners();
@@ -354,6 +365,7 @@ class UserViewModel with ChangeNotifier {
     _dailyComfortCount = 5;
     _lastLoginDate = null;
     _defaultPersonaStr = '전투';
+    _communityTone = 'none';
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();

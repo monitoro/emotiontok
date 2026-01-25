@@ -2,26 +2,68 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import '../viewmodels/venting_viewmodel.dart';
 import '../viewmodels/user_viewmodel.dart';
 import 'post_detail_screen.dart';
 import '../widgets/point_display.dart';
 import 'package:vibration/vibration.dart';
 
-class SquareScreen extends StatelessWidget {
+class SquareScreen extends StatefulWidget {
   const SquareScreen({super.key});
+
+  @override
+  State<SquareScreen> createState() => _SquareScreenState();
+}
+
+class _SquareScreenState extends State<SquareScreen> {
+  bool _isSelectionMode = false;
+  final Set<String> _selectedPostIds = {};
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('타오르는 광장',
-            style: TextStyle(fontWeight: FontWeight.bold)),
+        title: _isSelectionMode
+            ? Text('${_selectedPostIds.length}개 선택됨',
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 18))
+            : const Text('타오르는 광장',
+                style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
-        actions: const [
-          PointDisplay(),
-          SizedBox(width: 16),
+        leading: _isSelectionMode
+            ? IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () {
+                  setState(() {
+                    _isSelectionMode = false;
+                    _selectedPostIds.clear();
+                  });
+                },
+              )
+            : null,
+        actions: [
+          Consumer<UserViewModel>(
+            builder: (context, userVM, child) {
+              if (userVM.isAdmin) {
+                return _isSelectionMode
+                    ? IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () => _confirmBatchDelete(context),
+                      )
+                    : IconButton(
+                        icon: const Icon(Icons.checklist),
+                        onPressed: () {
+                          setState(() {
+                            _isSelectionMode = true;
+                          });
+                        },
+                      );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+          if (!_isSelectionMode) const PointDisplay(),
+          const SizedBox(width: 16),
         ],
       ),
       body: Consumer2<VentingViewModel, UserViewModel>(
@@ -30,7 +72,7 @@ class SquareScreen extends StatelessWidget {
 
           return Column(
             children: [
-              // Filter Bar
+              // Filter Bar (Disable in selection mode?) - Optional, keeping for now
               Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -42,7 +84,8 @@ class SquareScreen extends StatelessWidget {
                       icon: Icons.sort,
                       label: _getSortLabel(ventingVM.sortType),
                       onSelected: () {
-                        _showSortMenu(context, ventingVM);
+                        if (!_isSelectionMode)
+                          _showSortMenu(context, ventingVM);
                       },
                     ),
                     const SizedBox(width: 12),
@@ -52,7 +95,7 @@ class SquareScreen extends StatelessWidget {
                       icon: Icons.tag,
                       label: ventingVM.selectedTag ?? '전체',
                       onSelected: () {
-                        _showTagMenu(context, ventingVM);
+                        if (!_isSelectionMode) _showTagMenu(context, ventingVM);
                       },
                     ),
                     const SizedBox(width: 12),
@@ -62,7 +105,8 @@ class SquareScreen extends StatelessWidget {
                       icon: Icons.calendar_today,
                       label: _getPeriodLabel(ventingVM.filterPeriod),
                       onSelected: () {
-                        _showPeriodMenu(context, ventingVM);
+                        if (!_isSelectionMode)
+                          _showPeriodMenu(context, ventingVM);
                       },
                     ),
                   ],
@@ -78,11 +122,21 @@ class SquareScreen extends StatelessWidget {
                         itemCount: posts.length,
                         itemBuilder: (context, index) {
                           final post = posts[index];
-                          final timeStr =
-                              DateFormat('HH:mm').format(post.timestamp);
+                          final isSelected = _selectedPostIds.contains(post.id);
 
                           return GestureDetector(
                             onTap: () async {
+                              if (_isSelectionMode) {
+                                setState(() {
+                                  if (isSelected) {
+                                    _selectedPostIds.remove(post.id);
+                                  } else {
+                                    _selectedPostIds.add(post.id);
+                                  }
+                                });
+                                return;
+                              }
+
                               if (userVM.isVibrationOn &&
                                   await Vibration.hasVibrator() == true) {
                                 Vibration.vibrate(duration: 50);
@@ -97,231 +151,295 @@ class SquareScreen extends StatelessWidget {
                               );
                             },
                             onLongPress: () {
+                              if (_isSelectionMode) return;
+
+                              if (userVM.isAdmin) {
+                                // Admin Quick Select on Long Press? Or keep standard report
+                                setState(() {
+                                  _isSelectionMode = true;
+                                  _selectedPostIds.add(post.id);
+                                });
+                                return;
+                              }
+
                               // Can't block/report myself
                               if (post.authorId != userVM.userId) {
                                 _showReportBlockOption(
                                     context, post, ventingVM);
                               }
                             },
-                            child: Container(
-                              margin:
-                                  const EdgeInsets.only(bottom: 6), // 8 -> 6
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 10), // 16, 12 -> 14, 10
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF2A2A2A),
-                                borderRadius:
-                                    BorderRadius.circular(12), // 16 -> 12
-                                border: Border.all(
-                                    color: Colors.orange.withOpacity(0.2)),
-                                boxShadow: [
-                                  BoxShadow(
-                                      color: Colors.black
-                                          .withOpacity(0.1), // 그림자 연하게
-                                      blurRadius: 4,
-                                      offset: const Offset(0, 2)),
-                                ],
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // 1st Line: Content & Image
-                                  Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          post.content,
-                                          style: TextStyle(
-                                              fontSize: 15,
-                                              height: 1.2,
-                                              color:
-                                                  ventingVM.isPostRead(post.id)
-                                                      ? Colors.white38
-                                                      : Colors.white),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      if (post.imagePath != null) ...[
-                                        const SizedBox(width: 8),
-                                        ClipRRect(
-                                          borderRadius:
-                                              BorderRadius.circular(4),
-                                          child: SizedBox(
-                                            width: 32, // Smaller thumbnail
-                                            height: 32,
-                                            child: kIsWeb
-                                                ? Image.network(post.imagePath!,
-                                                    fit: BoxFit.cover)
-                                                : Image.file(
-                                                    File(post.imagePath!),
-                                                    fit: BoxFit.cover),
-                                          ),
-                                        ),
-                                      ],
-                                      // Edit/Delete Buttons (Moved to Right Top) -> Only if author is me
-                                      if (userVM.userId != null &&
-                                          post.authorId == userVM.userId)
+                            child: Stack(
+                              children: [
+                                Container(
+                                  margin: const EdgeInsets.only(bottom: 6),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 10),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF2A2A2A),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: _isSelectionMode && isSelected
+                                        ? Border.all(
+                                            color: const Color(0xFFFF4D00),
+                                            width: 2)
+                                        : Border.all(
+                                            color:
+                                                Colors.orange.withOpacity(0.2)),
+                                    boxShadow: [
+                                      BoxShadow(
+                                          color: Colors.black.withOpacity(0.1),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2)),
+                                    ],
+                                  ),
+                                  child: Opacity(
+                                    opacity: _isSelectionMode && !isSelected
+                                        ? 0.5
+                                        : 1.0,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        // 1st Line: Content & Image
                                         Row(
-                                          mainAxisSize: MainAxisSize.min,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
-                                            const SizedBox(width: 8),
-                                            GestureDetector(
-                                              onTap: () => _showEditDialog(
-                                                  context, ventingVM, post),
-                                              child: const Icon(Icons.edit,
-                                                  size: 16, color: Colors.grey),
+                                            Expanded(
+                                              child: Text(
+                                                post.content,
+                                                style: TextStyle(
+                                                    fontSize: 15,
+                                                    height: 1.2,
+                                                    color: ventingVM
+                                                            .isPostRead(post.id)
+                                                        ? Colors.white38
+                                                        : Colors.white),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
                                             ),
-                                            const SizedBox(width: 8),
-                                            GestureDetector(
-                                              onTap: () => _confirmDelete(
-                                                  context, post.id, ventingVM),
-                                              child: const Icon(Icons.delete,
-                                                  size: 16, color: Colors.grey),
+                                            if (post.imagePath != null) ...[
+                                              const SizedBox(width: 8),
+                                              ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                                child: SizedBox(
+                                                  width: 32,
+                                                  height: 32,
+                                                  child: kIsWeb
+                                                      ? Image.network(
+                                                          post.imagePath!,
+                                                          fit: BoxFit.cover)
+                                                      : Image.file(
+                                                          File(post.imagePath!),
+                                                          fit: BoxFit.cover),
+                                                ),
+                                              ),
+                                            ],
+                                            // Edit/Delete Buttons - Hide in selection mode to prevent conflicts
+                                            if (!_isSelectionMode &&
+                                                userVM.userId != null &&
+                                                post.authorId == userVM.userId)
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  const SizedBox(width: 8),
+                                                  GestureDetector(
+                                                    onTap: () =>
+                                                        _showEditDialog(context,
+                                                            ventingVM, post),
+                                                    child: const Icon(
+                                                        Icons.edit,
+                                                        size: 16,
+                                                        color: Colors.grey),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  GestureDetector(
+                                                    onTap: () => _confirmDelete(
+                                                        context,
+                                                        post.id,
+                                                        ventingVM),
+                                                    child: const Icon(
+                                                        Icons.delete,
+                                                        size: 16,
+                                                        color: Colors.grey),
+                                                  ),
+                                                ],
+                                              ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 6),
+                                        // 2nd Line: Meta Info & Stats
+                                        Row(
+                                          children: [
+                                            // Tag
+                                            if (post.tags.isNotEmpty)
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                    right: 6),
+                                                child: Text(
+                                                  '[#${post.tags.first}]',
+                                                  style: const TextStyle(
+                                                      color:
+                                                          Colors.orangeAccent,
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.bold),
+                                                ),
+                                              ),
+                                            // Level Badge
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 4,
+                                                      vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: PublicPost.getLevelColor(
+                                                        post.authorLevel)
+                                                    .withOpacity(0.2),
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                                border: Border.all(
+                                                    color: PublicPost
+                                                        .getLevelColor(
+                                                            post.authorLevel),
+                                                    width: 0.5),
+                                              ),
+                                              child: Text(
+                                                'Lv.${post.authorLevel}',
+                                                style: TextStyle(
+                                                  color:
+                                                      PublicPost.getLevelColor(
+                                                          post.authorLevel),
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            // Author Nickname
+                                            Text(
+                                              post.authorNickname,
+                                              style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 12,
+                                                  color:
+                                                      PublicPost.getLevelColor(
+                                                          post.authorLevel)),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            // Anger Level
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 4,
+                                                      vertical: 1),
+                                              decoration: BoxDecoration(
+                                                  color: Colors.red
+                                                      .withOpacity(0.1),
+                                                  borderRadius:
+                                                      BorderRadius.circular(3)),
+                                              child: Text(
+                                                  '분노 ${post.angerLevel.toInt()}%',
+                                                  style: const TextStyle(
+                                                      color: Colors.redAccent,
+                                                      fontSize: 9,
+                                                      fontWeight:
+                                                          FontWeight.bold)),
+                                            ),
+
+                                            const Spacer(), // Push stats to right
+
+                                            // Right: Stats (Fire, Water, Comment)
+                                            _InteractionIcon(
+                                              icon: Icons.fireplace,
+                                              count: post.supportCount,
+                                              color: Colors.orange,
+                                              onTap: () async {
+                                                if (_isSelectionMode) return;
+                                                if (userVM.isVibrationOn &&
+                                                    await Vibration
+                                                            .hasVibrator() ==
+                                                        true) {
+                                                  Vibration.vibrate(
+                                                      duration: 50);
+                                                }
+                                                try {
+                                                  await ventingVM
+                                                      .addFirewood(post.id);
+                                                } catch (e) {
+                                                  if (!context.mounted) return;
+                                                  ScaffoldMessenger.of(context)
+                                                      .showSnackBar(
+                                                    SnackBar(
+                                                        content:
+                                                            Text(e.toString())),
+                                                  );
+                                                }
+                                              },
+                                            ),
+                                            const SizedBox(width: 12),
+                                            _InteractionIcon(
+                                              icon: Icons.water_drop,
+                                              count: post.comfortCount,
+                                              color: Colors.blue,
+                                              onTap: () async {
+                                                if (_isSelectionMode) return;
+                                                if (userVM.isVibrationOn &&
+                                                    await Vibration
+                                                            .hasVibrator() ==
+                                                        true) {
+                                                  Vibration.vibrate(
+                                                      duration: 50);
+                                                }
+                                                try {
+                                                  await ventingVM
+                                                      .addWater(post.id);
+                                                } catch (e) {
+                                                  if (!context.mounted) return;
+                                                  ScaffoldMessenger.of(context)
+                                                      .showSnackBar(
+                                                    SnackBar(
+                                                        content:
+                                                            Text(e.toString())),
+                                                  );
+                                                }
+                                              },
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Row(
+                                              children: [
+                                                const Icon(Icons.comment,
+                                                    size: 14,
+                                                    color: Colors.grey),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                    '${post.totalCommentCount}', // Use recursive count
+                                                    style: const TextStyle(
+                                                        color: Colors.grey,
+                                                        fontSize: 12)),
+                                              ],
                                             ),
                                           ],
                                         ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                  const SizedBox(height: 6), // Tight spacing
-                                  // 2nd Line: Meta Info & Stats
-                                  Row(
-                                    children: [
-                                      // Tag
-                                      if (post.tags.isNotEmpty)
-                                        Padding(
-                                          padding:
-                                              const EdgeInsets.only(right: 6),
-                                          child: Text(
-                                            '[#${post.tags.first}]',
-                                            style: const TextStyle(
-                                                color: Colors.orangeAccent,
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.bold),
-                                          ),
-                                        ),
-                                      // Level Badge
-                                      // Level Badge
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 4, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: PublicPost.getLevelColor(
-                                                  post.authorLevel)
-                                              .withOpacity(0.2),
-                                          borderRadius:
-                                              BorderRadius.circular(4),
-                                          border: Border.all(
-                                              color: PublicPost.getLevelColor(
-                                                  post.authorLevel),
-                                              width: 0.5),
-                                        ),
-                                        child: Text(
-                                          'Lv.${post.authorLevel}',
-                                          style: TextStyle(
-                                            color: PublicPost.getLevelColor(
-                                                post.authorLevel),
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
+                                ),
+                                if (_isSelectionMode && isSelected)
+                                  Positioned(
+                                    top: 10,
+                                    right: 14,
+                                    child: Container(
+                                      decoration: const BoxDecoration(
+                                        color: Colors.white,
+                                        shape: BoxShape.circle,
                                       ),
-                                      const SizedBox(width: 6),
-                                      // Author Nickname
-                                      Text(
-                                        post.authorNickname,
-                                        style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 12,
-                                            color: PublicPost.getLevelColor(
-                                                post.authorLevel)),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      // Anger Level
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 4, vertical: 1),
-                                        decoration: BoxDecoration(
-                                            color: Colors.red.withOpacity(0.1),
-                                            borderRadius:
-                                                BorderRadius.circular(3)),
-                                        child: Text(
-                                            '분노 ${post.angerLevel.toInt()}%',
-                                            style: const TextStyle(
-                                                color: Colors.redAccent,
-                                                fontSize: 9,
-                                                fontWeight: FontWeight.bold)),
-                                      ),
-
-                                      const Spacer(), // Push stats to right
-
-                                      // Right: Stats (Fire, Water, Comment)
-                                      _InteractionIcon(
-                                        icon: Icons.fireplace,
-                                        count: post.supportCount,
-                                        color: Colors.orange,
-                                        onTap: () async {
-                                          if (userVM.isVibrationOn &&
-                                              await Vibration.hasVibrator() ==
-                                                  true) {
-                                            Vibration.vibrate(duration: 50);
-                                          }
-                                          try {
-                                            await ventingVM
-                                                .addFirewood(post.id);
-                                          } catch (e) {
-                                            if (!context.mounted) return;
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
-                                              SnackBar(
-                                                  content: Text(e.toString())),
-                                            );
-                                          }
-                                        },
-                                      ),
-                                      const SizedBox(width: 12),
-                                      _InteractionIcon(
-                                        icon: Icons.water_drop,
-                                        count: post.comfortCount,
-                                        color: Colors.blue,
-                                        onTap: () async {
-                                          if (userVM.isVibrationOn &&
-                                              await Vibration.hasVibrator() ==
-                                                  true) {
-                                            Vibration.vibrate(duration: 50);
-                                          }
-                                          try {
-                                            await ventingVM.addWater(post.id);
-                                          } catch (e) {
-                                            if (!context.mounted) return;
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
-                                              SnackBar(
-                                                  content: Text(e.toString())),
-                                            );
-                                          }
-                                        },
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Row(
-                                        children: [
-                                          const Icon(Icons.comment,
-                                              size: 14, color: Colors.grey),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                              '${post.totalCommentCount}', // Use recursive count
-                                              style: const TextStyle(
-                                                  color: Colors.grey,
-                                                  fontSize: 12)),
-                                        ],
-                                      ),
-                                    ],
+                                      child: const Icon(Icons.check_circle,
+                                          color: Color(0xFFFF4D00), size: 24),
+                                    ),
                                   ),
-                                ],
-                              ),
+                              ],
                             ),
                           );
                         },
@@ -330,6 +448,47 @@ class SquareScreen extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+
+  void _confirmBatchDelete(BuildContext context) {
+    if (_selectedPostIds.isEmpty) return;
+
+    final ventingVM = Provider.of<VentingViewModel>(context, listen: false);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: const Text('게시글 삭제'),
+        content: Text('${_selectedPostIds.length}개의 게시글을 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context), child: const Text('취소')),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await ventingVM.deletePublicPosts(_selectedPostIds.toList());
+                setState(() {
+                  _isSelectionMode = false;
+                  _selectedPostIds.clear();
+                });
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('삭제 완료')),
+                );
+              } catch (e) {
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('오류 발생: $e')),
+                );
+              }
+            },
+            child: const Text('모두 삭제', style: TextStyle(color: Colors.red)),
+          ),
+        ],
       ),
     );
   }

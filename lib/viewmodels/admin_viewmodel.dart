@@ -22,22 +22,71 @@ class AdminViewModel with ChangeNotifier {
     '지침 (Exhaustion)'
   ];
 
-  final List<String> _nicknames = [
-    '익명의 다람쥐',
-    '지친 회사원',
-    '배고픈 곰',
-    '잠 못 드는 밤',
-    '퇴사가 꿈',
-    '월요병 환자',
-    '그냥 행인',
-    '소심한 관종',
-    '분노조절장애',
-    '행복하고싶다',
-    '로또1등부탁',
-    '익명123',
+  final List<String> _adjectives = [
+    '익명의',
+    '지친',
+    '배고픈',
+    '잠 못 드는',
+    '퇴사가 꿈인',
+    '월요병 걸린',
+    '소심한',
+    '분노한',
+    '행복하고 싶은',
+    '로또 당첨된',
+    '감자 같은',
+    '고구마 먹은',
+    '매운맛',
+    '순한맛',
+    '집에 가고 싶은',
+    '야근하는',
+    '주말을 기다리는',
+    '다이어트 중인',
+    '운동하는'
+  ];
+
+  final List<String> _nouns = [
+    '다람쥐',
+    '회사원',
+    '곰',
+    '밤',
+    '행인',
+    '관종',
+    '환자',
     '감자',
     '고구마',
+    '개발자',
+    '디자이너',
+    '기획자',
+    '학생',
+    '취준생',
+    '프리랜서',
+    '예술가',
+    '고양이',
+    '강아지',
+    '호랑이',
+    '토끼',
+    '오리',
+    '햄스터',
+    '앵무새'
   ];
+
+  String _generateRandomNickname() {
+    final random = Random();
+    String nickname = '';
+
+    // Retry loop to ensure nickname is 7 characters or less (including space/numbers)
+    // Most combinations should fit, but this guarantees it.
+    // e.g. "지친 곰99" (6 chars)
+    do {
+      final adj = _adjectives[random.nextInt(_adjectives.length)];
+      final noun = _nouns[random.nextInt(_nouns.length)];
+      final num = random.nextInt(999);
+      nickname = '$adj $noun$num';
+    } while (nickname.length > 7);
+
+    return nickname;
+  }
+
   // Fixed tags based on VentingViewModel keys
   final List<String> _tags = ['직장', '관계', '일상', '연애', '건강'];
 
@@ -156,7 +205,15 @@ class AdminViewModel with ChangeNotifier {
         _statusMessage = '글 생성 중... (${i + 1}/$count)';
         notifyListeners();
 
-        final tag = _tags[random.nextInt(_tags.length)];
+        // Weekend Logic: Exclude '직장' (Work) on Sat/Sun
+        final currentDate = DateTime.now();
+        List<String> availableTags = List.from(_tags);
+        if (currentDate.weekday == DateTime.saturday ||
+            currentDate.weekday == DateTime.sunday) {
+          availableTags.remove('직장');
+        }
+
+        final tag = availableTags[random.nextInt(availableTags.length)];
         // Map tag to topic for AI
         String topic = tag;
         if (tag == '직장')
@@ -173,11 +230,12 @@ class AdminViewModel with ChangeNotifier {
         final emotion = _emotions[random.nextInt(_emotions.length)];
 
         print('Generating post ${i + 1}/$count - Topic: $topic');
-        final content = await AIService.getSeedContent(topic, emotion);
+        final content = await AIService.getSeedContent(topic, emotion,
+            type: 'post'); // Updated API call
         print(
             'Post content generated: ${content.substring(0, min(10, content.length))}...');
 
-        final nickname = _nicknames[random.nextInt(_nicknames.length)];
+        final nickname = _generateRandomNickname();
         final level = 3 + random.nextInt(7); // 3 ~ 9 (3 + 0..6)
         final angerLevel = random.nextDouble() * 100;
 
@@ -193,9 +251,14 @@ class AdminViewModel with ChangeNotifier {
         print('Generating $commentCount comments for post ${i + 1}');
 
         for (int j = 0; j < commentCount; j++) {
-          String commentContent =
-              await AIService.getSeedContent("위로/공감/조언", "따뜻함");
-          String commentNick = _nicknames[random.nextInt(_nicknames.length)];
+          // Diverse Community Tones
+          final tones = ['dc_inside', 'theqoo', 'fmkorea', 'ruliweb', 'none'];
+          final randomTone = tones[random.nextInt(tones.length)];
+
+          String commentContent = await AIService.getSeedContent(topic, emotion,
+              type: 'comment', communityTone: randomTone);
+
+          String commentNick = _generateRandomNickname();
           comments.add(PublicComment(
               authorId: 'seed_commenter_$j',
               nickname: commentNick,
