@@ -49,3 +49,7 @@ app.*.map.json
 /android/.gradle/
 .flutter-plugins
 lib/config/api_config.dart
+
+# Signing keys
+*.jks
+key.properties
