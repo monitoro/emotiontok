@@ -1,0 +1,19 @@
+Running Gradle task 'assembleDebug'...                          
+
+FAILURE: Build failed with an exception.
+
+* Where:
+Build file 'C:\Users\Player\00_Develop\Flutter\emotiontok\android\app\build.gradle.kts' line: 45
+
+* What went wrong:
+null cannot be cast to non-null type kotlin.String
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 1s
+Running Gradle task 'assembleDebug'...                           1,265ms
+Gradle task assembleDebug failed with exit code 1

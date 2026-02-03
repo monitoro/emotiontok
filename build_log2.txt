@@ -1,0 +1,87 @@
+Running Gradle task 'assembleDebug'...                          
+lib/viewmodels/venting_viewmodel.dart:9:8: Error: Error when reading 'lib/models/letter_model.dart': 吏?뺣맂 寃쎈줈瑜?李얠쓣 ???놁뒿?덈떎
+import '../models/letter_model.dart';
+       ^
+lib/views/mailbox_screen.dart:5:8: Error: Error when reading 'lib/models/letter_model.dart': 吏?뺣맂 寃쎈줈瑜?李얠쓣 ???놁뒿?덈떎
+import '../models/letter_model.dart';
+       ^
+lib/views/letter_detail_screen.dart:11:8: Error: Error when reading 'lib/models/letter_model.dart': 吏?뺣맂 寃쎈줈瑜?李얠쓣 ???놁뒿?덈떎
+import '../models/letter_model.dart';
+       ^
+lib/viewmodels/venting_viewmodel.dart:253:8: Error: Type 'Letter' not found.
+  List<Letter> _letters = []; // Letter Inbox
+       ^^^^^^
+lib/viewmodels/venting_viewmodel.dart:514:8: Error: Type 'Letter' not found.
+  List<Letter> get letters => _letters;
+       ^^^^^^
+lib/views/mailbox_screen.dart:51:29: Error: Type 'Letter' not found.
+      BuildContext context, Letter letter, VentingViewModel vm) {
+                            ^^^^^^
+lib/views/letter_detail_screen.dart:18:9: Error: Type 'Letter' not found.
+  final Letter letter;
+        ^^^^^^
+lib/viewmodels/venting_viewmodel.dart:253:8: Error: 'Letter' isn't a type.
+  List<Letter> _letters = []; // Letter Inbox
+       ^^^^^^
+lib/viewmodels/venting_viewmodel.dart:515:57: Error: The getter 'isRead' isn't defined for the type 'Object?'.
+ - 'Object' is from 'dart:core'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'isRead'.
+  int get unreadLetterCount => _letters.where((l) => !l.isRead).length;
+                                                        ^^^^^^
+lib/viewmodels/venting_viewmodel.dart:523:39: Error: The getter 'Letter' isn't defined for the type 'VentingViewModel'.
+ - 'VentingViewModel' is from 'package:emotiontok/viewmodels/venting_viewmodel.dart' ('lib/viewmodels/venting_viewmodel.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Letter'.
+        _letters = decoded.map((e) => Letter.fromMap(e)).toList();
+                                      ^^^^^^
+lib/viewmodels/venting_viewmodel.dart:525:35: Error: The getter 'timestamp' isn't defined for the type 'Object?'.
+ - 'Object' is from 'dart:core'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'timestamp'.
+        _letters.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+                                  ^^^^^^^^^
+lib/viewmodels/venting_viewmodel.dart:525:57: Error: The getter 'timestamp' isn't defined for the type 'Object?'.
+ - 'Object' is from 'dart:core'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'timestamp'.
+        _letters.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+                                                        ^^^^^^^^^
+lib/viewmodels/venting_viewmodel.dart:535:54: Error: The method 'toMap' isn't defined for the type 'Object?'.
+ - 'Object' is from 'dart:core'.
+Try correcting the name to the name of an existing method, or defining a method named 'toMap'.
+    final encoded = jsonEncode(_letters.map((e) => e.toMap()).toList());
+                                                     ^^^^^
+lib/viewmodels/venting_viewmodel.dart:540:48: Error: The getter 'id' isn't defined for the type 'Object?'.
+ - 'Object' is from 'dart:core'.
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'id'.
+    final index = _letters.indexWhere((l) => l.id == id);
+                                               ^^
+lib/viewmodels/venting_viewmodel.dart:580:49: Error: Member not found: 'AIService.getSaRrLetter'.
+      final String contentRaw = await AIService.getSaRrLetter(
+                                                ^^^^^^^^^^^^^
+lib/viewmodels/venting_viewmodel.dart:603:25: Error: The method 'Letter' isn't defined for the type 'VentingViewModel'.
+ - 'VentingViewModel' is from 'package:emotiontok/viewmodels/venting_viewmodel.dart' ('lib/viewmodels/venting_viewmodel.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'Letter'.
+      final newLetter = Letter(
+                        ^^^^^^
+lib/views/mailbox_screen.dart:51:29: Error: 'Letter' isn't a type.
+      BuildContext context, Letter letter, VentingViewModel vm) {
+                            ^^^^^^
+lib/views/letter_detail_screen.dart:18:9: Error: 'Letter' isn't a type.
+  final Letter letter;
+        ^^^^^^
+Target kernel_snapshot_program failed: Exception
+
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileFlutterBuildDebug'.
+> Process 'command 'C:\Users\Player\00_Develop\Flutter\flutter\flutter\bin\flutter.bat'' finished with non-zero exit value 1
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 4s
+Running Gradle task 'assembleDebug'...                              4.5s
+Gradle task assembleDebug failed with exit code 1

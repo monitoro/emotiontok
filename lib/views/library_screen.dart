@@ -7,6 +7,7 @@ import '../viewmodels/venting_viewmodel.dart';
 import '../widgets/point_display.dart';
 import '../viewmodels/user_viewmodel.dart';
 import '../utils/app_fonts.dart';
+import 'mailbox_screen.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
@@ -47,9 +48,19 @@ class _LibraryScreenState extends State<LibraryScreen> {
         title:
             const Text('감정 보관함', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
-        actions: const [
-          PointDisplay(),
-          SizedBox(width: 16),
+        actions: [
+          IconButton(
+            onPressed: () {
+              Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const MailboxScreen()));
+            },
+            icon: const Icon(Icons.mail_outline, color: Colors.white),
+            tooltip: '마음 우체통',
+          ),
+          const PointDisplay(),
+          const SizedBox(width: 16),
         ],
       ),
       body: Column(

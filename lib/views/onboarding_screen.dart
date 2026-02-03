@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/user_viewmodel.dart';
-import 'persona_selection_screen.dart';
+import 'main_navigation_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -26,16 +26,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             Text(
               '환영합니다.\n당신을 어떻게 부를까요?',
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                height: 1.4,
-              ),
+                    fontWeight: FontWeight.bold,
+                    height: 1.4,
+                  ),
             ),
             const SizedBox(height: 32),
             TextField(
               controller: _nicknameController,
               decoration: InputDecoration(
                 labelText: '닉네임 (익명 보장)',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
             const SizedBox(height: 16),
@@ -46,7 +47,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               maxLength: 4,
               decoration: InputDecoration(
                 labelText: '보안 PIN (4자리)',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 counterText: "",
               ),
             ),
@@ -56,21 +58,29 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               height: 56,
               child: ElevatedButton(
                 onPressed: () {
-                  if (_nicknameController.text.isNotEmpty && _pinController.text.length == 4) {
-                    final userVM = Provider.of<UserViewModel>(context, listen: false);
+                  if (_nicknameController.text.isNotEmpty &&
+                      _pinController.text.length == 4) {
+                    final userVM =
+                        Provider.of<UserViewModel>(context, listen: false);
                     userVM.setNickname(_nicknameController.text);
                     userVM.setPin(_pinController.text);
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const PersonaSelectionScreen()),
+                    // Persona selection removed - using random by default
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(
+                          builder: (_) => const MainNavigationScreen()),
+                      (route) => false,
                     );
                   }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFF4D00),
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text('다음으로', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                child: const Text('다음으로',
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 24),

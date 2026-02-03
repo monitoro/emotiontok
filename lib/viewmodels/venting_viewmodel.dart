@@ -6,6 +6,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../viewmodels/user_viewmodel.dart';
+import '../models/letter_model.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import '../services/ai_service.dart';
 
 enum VentingMode { text, voice }
 
@@ -247,6 +250,7 @@ class VentingViewModel with ChangeNotifier {
   List<PublicPost> _publicPosts = [];
 
   final List<PrivatePost> _privateHistory = [];
+  List<Letter> _letters = []; // Letter Inbox
 
   final Set<String> _readPostIds = {}; // Track read posts
   final Set<String> _blockedUserIds = {}; // Blocked user IDs
@@ -254,6 +258,7 @@ class VentingViewModel with ChangeNotifier {
 
   VentingViewModel() {
     _loadPrivateHistory();
+    _loadLetters(); // Load letters
     _loadReadPostIds(); // Load read state
     _loadBlockedUsers(); // Load blocked users
     _initFirebase();
@@ -504,6 +509,113 @@ class VentingViewModel with ChangeNotifier {
           pDate.month == targetDate.month &&
           pDate.day == targetDate.day;
     }).toList();
+  }
+
+  List<Letter> get letters => _letters;
+  int get unreadLetterCount => _letters.where((l) => !l.isRead).length;
+
+  Future<void> _loadLetters() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? json = prefs.getString('sarr_letters');
+      if (json != null) {
+        final List<dynamic> decoded = jsonDecode(json);
+        _letters = decoded.map((e) => Letter.fromMap(e)).toList();
+        // Sort by date desc
+        _letters.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error loading letters: $e');
+    }
+  }
+
+  Future<void> _saveLetters() async {
+    final prefs = await SharedPreferences.getInstance();
+    final encoded = jsonEncode(_letters.map((e) => e.toMap()).toList());
+    await prefs.setString('sarr_letters', encoded);
+  }
+
+  Future<void> markLetterAsRead(String id) async {
+    final index = _letters.indexWhere((l) => l.id == id);
+    if (index != -1 && !_letters[index].isRead) {
+      _letters[index].isRead = true;
+      await _saveLetters();
+      notifyListeners();
+    }
+  }
+
+  bool _hasNewLetter = false;
+  bool get hasNewLetter => _hasNewLetter;
+
+  void consumeNewLetterEvent() {
+    _hasNewLetter = false;
+    notifyListeners();
+  }
+
+  // Trigger SaRr Letter Generation (Background Simulation)
+  Future<void> triggerBackgroundLetter(String userWorry) async {
+    // 1. Simulating a delay (e.g. "It takes time to write a letter")
+    // In a real app, this might be a notification trigger later.
+    // For now, we generate it but maybe don't notify immediately or just add it.
+
+    debugPrint("Generating SaRr letter for: $userWorry");
+
+    try {
+      // Load prompt from assets
+      final String promptTemplate =
+          await rootBundle.loadString('assets/data/sarr_prompt.txt');
+
+      // Add instruction for Title generation (Emotional Essay Style, Korean)
+      final String instruction =
+          "\n\n[SYSTEM INSTRUCTION]: Please write a comforting letter based on the user's worry. "
+          "IMPORTANT: The VERY FIRST LINE of your response MUST be an emotional, essay-like title IN KOREAN. "
+          "It should sound poetic and empathetic, like a chapter title from a self-help book. "
+          "Do NOT use generic titles like '위로의 편지' or 'Comfort Letter'. "
+          "Examples: '기다림에 지친 당신에게', '바쁜 하루 속 작은 쉼표', '괜찮지 않아도 괜찮아요'. "
+          "Format: 'Title: [감성적인 한글 제목]'. "
+          "The content should follow the standard SaRr format.";
+
+      // Call AI
+      final String contentRaw = await AIService.getSaRrLetter(
+          promptTemplate, userWorry + instruction);
+
+      // Parse Title
+      String title = '위로의 편지'; // Default
+      String contentBody = contentRaw;
+
+      // Check first line for Title:
+      final LineSplitter ls = const LineSplitter();
+      final List<String> lines = ls.convert(contentRaw);
+
+      if (lines.isNotEmpty) {
+        final firstLine = lines.first.trim();
+        if (firstLine.toLowerCase().startsWith('title:')) {
+          title = firstLine.substring(6).trim();
+          // Remove title line
+          contentBody = lines.skip(1).join('\n').trim();
+        } else if (firstLine.startsWith('제목:')) {
+          title = firstLine.substring(3).trim();
+          contentBody = lines.skip(1).join('\n').trim();
+        }
+      }
+
+      final newLetter = Letter(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        title: title,
+        content: contentBody,
+        timestamp: DateTime.now(),
+        isRead: false,
+      );
+
+      _letters.insert(0, newLetter);
+      await _saveLetters();
+
+      _hasNewLetter = true; // Trigger Popup
+      notifyListeners();
+    } catch (e) {
+      debugPrint("Failed to generate letter: $e");
+    }
   }
 
   void setSelectedCalendarDate(DateTime date) {

@@ -191,4 +191,32 @@ Output only the comment content.
       return "그냥 아무 생각 없이 멍때리고 싶다.";
     }
   }
+
+  /// Generate a SaRr comfort letter based on user's worry
+  static Future<String> getSaRrLetter(
+      String promptTemplate, String userWorry) async {
+    try {
+      final model = GenerativeModel(
+        model: 'gemini-2.5-flash',
+        apiKey: ApiConfig.geminiApiKey,
+      );
+
+      final fullPrompt = '''
+$promptTemplate
+
+---
+User's worry/concern:
+$userWorry
+---
+
+Please write a comforting letter in response to the user's concern above.
+''';
+
+      final response = await model.generateContent([Content.text(fullPrompt)]);
+      return response.text ?? "마음이 힘들 때, 잠시 쉬어가도 괜찮아요.";
+    } catch (e) {
+      print('Error in getSaRrLetter: $e');
+      return "마음이 힘들 때, 잠시 쉬어가도 괜찮아요. 당신의 마음을 응원합니다.";
+    }
+  }
 }
