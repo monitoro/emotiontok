@@ -81,6 +81,7 @@ class PublicPost {
   final List<String> tags;
   final String fontName;
   final int authorLevel;
+  bool isHidden;
 
   // Recursive comment count getter
   int get totalCommentCount {
@@ -114,6 +115,7 @@ class PublicPost {
     this.tags = const [],
     this.fontName = '나눔 펜 (손글씨)',
     this.authorLevel = 1,
+    this.isHidden = false,
   }) : comments = comments ?? [];
 
   Map<String, dynamic> toMap() {
@@ -132,6 +134,7 @@ class PublicPost {
       'fontName': fontName,
       'authorLevel': authorLevel,
       'authorId': authorId,
+      'isHidden': isHidden,
     };
   }
 
@@ -165,6 +168,7 @@ class PublicPost {
       tags: List<String>.from(map['tags'] ?? []),
       fontName: map['fontName'] ?? '나눔 펜 (손글씨)',
       authorLevel: map['authorLevel'] ?? 1,
+      isHidden: map['isHidden'] ?? false,
     );
   }
 }
@@ -637,7 +641,10 @@ class VentingViewModel with ChangeNotifier {
   }
 
   List<PublicPost> get publicPosts {
-    List<PublicPost> filteredList = _publicPosts;
+    // Filter hidden posts first
+    List<PublicPost> filteredList =
+        _publicPosts.where((p) => !p.isHidden).toList();
+
     print(
         'DEBUG: publicPosts getter called. Total: ${_publicPosts.length}, Filter: Period=$_filterPeriod, Tag=$_selectedTag, Blocked=${_blockedUserIds.length}');
 
@@ -932,6 +939,17 @@ class VentingViewModel with ChangeNotifier {
       await _firestore.collection('posts').doc(postId).delete();
     } catch (e) {
       print("Error deleting post: $e");
+    }
+  }
+
+  Future<void> hidePost(String postId, {bool hide = true}) async {
+    try {
+      await _firestore
+          .collection('posts')
+          .doc(postId)
+          .update({'isHidden': hide});
+    } catch (e) {
+      print("Error hiding post: $e");
     }
   }
 

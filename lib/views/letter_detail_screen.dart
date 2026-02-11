@@ -154,7 +154,7 @@ class _LetterDetailScreenState extends State<LetterDetailScreen> {
             padding: const EdgeInsets.only(top: 20, bottom: 12),
             child: Text(
               trimmed.substring(2),
-              style: GoogleFonts.notoSansKr(
+              style: GoogleFonts.poorStory(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
                 color: const Color(0xFFFFD700),
@@ -167,7 +167,7 @@ class _LetterDetailScreenState extends State<LetterDetailScreen> {
             padding: const EdgeInsets.only(top: 16, bottom: 10),
             child: Text(
               trimmed.substring(3),
-              style: GoogleFonts.notoSansKr(
+              style: GoogleFonts.poorStory(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
                 color: const Color(0xFFFFD700),
@@ -193,7 +193,7 @@ class _LetterDetailScreenState extends State<LetterDetailScreen> {
             ),
             child: RichText(
               text: TextSpan(
-                style: GoogleFonts.nanumMyeongjo(
+                style: GoogleFonts.poorStory(
                   fontSize: 15,
                   height: 1.8,
                   color: const Color(0xFFCCCCCC),
@@ -211,7 +211,7 @@ class _LetterDetailScreenState extends State<LetterDetailScreen> {
           child: RichText(
             textAlign: TextAlign.justify,
             text: TextSpan(
-              style: GoogleFonts.nanumMyeongjo(
+              style: GoogleFonts.poorStory(
                 fontSize: 16,
                 height: 1.85,
                 color: const Color(0xFFE0E0E0),
@@ -256,7 +256,7 @@ class _LetterDetailScreenState extends State<LetterDetailScreen> {
           // Title
           Text(
             widget.letter.title,
-            style: GoogleFonts.nanumMyeongjo(
+            style: GoogleFonts.poorStory(
               fontSize: 26,
               fontWeight: FontWeight.bold,
               color: const Color(0xFFFFD700),
@@ -269,7 +269,7 @@ class _LetterDetailScreenState extends State<LetterDetailScreen> {
           // Subtitle (sender & date)
           Text(
             'From. ${widget.letter.sender}  |  $dateStr',
-            style: GoogleFonts.notoSansKr(
+            style: GoogleFonts.poorStory(
               fontSize: 12,
               color: const Color(0xFFAAAAAA),
               letterSpacing: 1.5,
@@ -315,7 +315,7 @@ class _LetterDetailScreenState extends State<LetterDetailScreen> {
             ),
             child: Text(
               '마음 우체통 • EmotionTok',
-              style: GoogleFonts.notoSansKr(
+              style: GoogleFonts.poorStory(
                 fontSize: 11,
                 color: const Color(0xFF666666),
               ),
@@ -337,7 +337,7 @@ class _LetterDetailScreenState extends State<LetterDetailScreen> {
       ),
       child: Text(
         '$label: $value',
-        style: GoogleFonts.notoSansKr(
+        style: GoogleFonts.poorStory(
           fontSize: 12,
           color: const Color(0xFFFFD700),
           fontWeight: FontWeight.w500,
@@ -350,66 +350,18 @@ class _LetterDetailScreenState extends State<LetterDetailScreen> {
     setState(() => _isSaving = true);
 
     try {
-      // Create an offscreen widget for full capture
-      final captureWidget = RepaintBoundary(
-        key: _repaintKey,
-        child: Material(
-          color: const Color(0xFF121212),
-          child: SizedBox(
-            width: 400, // Fixed width for consistent capture
-            child: _buildLetterCard(),
-          ),
-        ),
-      );
+      // Allow the UI to settle
+      await Future.delayed(const Duration(milliseconds: 100));
 
-      // Build the widget offscreen
-      final renderObject = _repaintKey.currentContext?.findRenderObject();
+      final boundary = _repaintKey.currentContext?.findRenderObject()
+          as RenderRepaintBoundary?;
+      if (boundary == null) throw Exception('캡처 영영을 찾을 수 없습니다.');
 
-      if (renderObject == null) {
-        // Need to build offscreen
-        final pipelineOwner = PipelineOwner();
-        final buildOwner = BuildOwner(focusManager: FocusManager());
-
-        final renderView = RenderView(
-          view: WidgetsBinding.instance.platformDispatcher.views.first,
-          configuration: ViewConfiguration(
-            logicalConstraints: BoxConstraints.tight(const Size(400, 2000)),
-            devicePixelRatio: 3.0,
-          ),
-        );
-
-        pipelineOwner.rootNode = renderView;
-        renderView.prepareInitialFrame();
-
-        final renderElement = RenderObjectToWidgetAdapter<RenderBox>(
-          container: renderView,
-          child: captureWidget,
-        ).attachToRenderTree(buildOwner);
-
-        buildOwner.buildScope(renderElement);
-        pipelineOwner.flushLayout();
-        pipelineOwner.flushCompositingBits();
-        pipelineOwner.flushPaint();
-
-        final boundary = renderView.child as RenderRepaintBoundary?;
-        if (boundary == null) throw Exception('Unable to capture');
-
-        final image = await boundary.toImage(pixelRatio: 3.0);
-        final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-
-        if (byteData == null) throw Exception('Failed to convert image');
-
-        final pngBytes = byteData.buffer.asUint8List();
-        await _shareImage(pngBytes);
-        return;
-      }
-
-      // Standard capture path
-      final boundary = renderObject as RenderRepaintBoundary;
+      // Capture the boundary (which is now wrapping the entire content card)
       final image = await boundary.toImage(pixelRatio: 3.0);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
 
-      if (byteData == null) throw Exception('Failed to convert image');
+      if (byteData == null) throw Exception('이미지 변환에 실패했습니다.');
 
       final pngBytes = byteData.buffer.asUint8List();
       await _shareImage(pngBytes);
@@ -417,7 +369,7 @@ class _LetterDetailScreenState extends State<LetterDetailScreen> {
       debugPrint('Image Save Error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('저장에 실패했습니다: $e')),
+          SnackBar(content: Text('공유에 실패했습니다: $e')),
         );
       }
     } finally {
@@ -470,10 +422,10 @@ class _LetterDetailScreenState extends State<LetterDetailScreen> {
           ),
         ],
       ),
-      body: RepaintBoundary(
-        key: _repaintKey,
-        child: SingleChildScrollView(
-          controller: _scrollController,
+      body: SingleChildScrollView(
+        controller: _scrollController,
+        child: RepaintBoundary(
+          key: _repaintKey,
           child: _buildLetterCard(),
         ),
       ),

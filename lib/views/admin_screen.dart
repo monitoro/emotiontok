@@ -5,8 +5,21 @@ import '../viewmodels/venting_viewmodel.dart';
 import '../viewmodels/user_viewmodel.dart';
 import 'post_detail_screen.dart';
 
-class AdminScreen extends StatelessWidget {
+class AdminScreen extends StatefulWidget {
   const AdminScreen({super.key});
+
+  @override
+  State<AdminScreen> createState() => _AdminScreenState();
+}
+
+class _AdminScreenState extends State<AdminScreen> {
+  final TextEditingController _externalDataController = TextEditingController();
+
+  @override
+  void dispose() {
+    _externalDataController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +44,7 @@ class AdminScreen extends StatelessWidget {
               return TabBarView(
                 children: [
                   // Tab 1: Seed Generation
-                  Center(
+                  SingleChildScrollView(
                     child: Padding(
                       padding: const EdgeInsets.all(24.0),
                       child: Column(
@@ -65,33 +78,166 @@ class AdminScreen extends StatelessWidget {
                                 const SizedBox(height: 32),
                                 const Divider(
                                     color: Colors.white24, height: 32),
+                                const Text(
+                                  '외부 데이터 연동 (URL 또는 본문)',
+                                  style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white70),
+                                ),
+                                const SizedBox(height: 12),
+                                TextField(
+                                  controller: _externalDataController,
+                                  maxLines: 2,
+                                  decoration: InputDecoration(
+                                    hintText: '타 게시판 글의 링크나 본문을 붙여넣으세요...',
+                                    hintStyle: const TextStyle(
+                                        color: Colors.white24, fontSize: 13),
+                                    filled: true,
+                                    fillColor: Colors.white.withOpacity(0.05),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                  ),
+                                  onSubmitted: (value) {
+                                    if (value.isNotEmpty) {
+                                      adminVM.generateSeedFromText(value);
+                                      _externalDataController.clear();
+                                    }
+                                  },
+                                ),
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    onPressed: () {
+                                      final text =
+                                          _externalDataController.text.trim();
+                                      if (text.isNotEmpty) {
+                                        adminVM.generateSeedFromText(text);
+                                        _externalDataController.clear();
+                                      } else {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(const SnackBar(
+                                                content: Text('내용을 입력해주세요.')));
+                                      }
+                                    },
+                                    icon: const Icon(Icons.link),
+                                    label: const Text('위 내용으로 커스텀 생성'),
+                                    style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(
+                                          color: Colors.orangeAccent),
+                                      foregroundColor: Colors.orangeAccent,
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 12),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 32),
+                                const Divider(
+                                    color: Colors.white24, height: 32),
                                 Consumer<UserViewModel>(
                                   builder: (context, userVM, child) {
-                                    return SizedBox(
-                                      width: double.infinity,
-                                      child: ElevatedButton.icon(
-                                        onPressed: () async {
-                                          await userVM.addComfortCounts(100);
-                                          if (context.mounted) {
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
-                                              SnackBar(
-                                                  content: Text(
-                                                      '위로 횟수 충전 완료! (현재: ${userVM.dailyComfortCount})')),
-                                            );
-                                          }
-                                        },
-                                        icon: const Icon(Icons.favorite,
-                                            color: Colors.white),
-                                        label: Text(
-                                            '위로 횟수 100회 충전 (${userVM.dailyComfortCount})'),
-                                        style: ElevatedButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(
-                                              vertical: 16),
-                                          backgroundColor: Colors.pinkAccent,
-                                          foregroundColor: Colors.white,
+                                    return Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          '테스트용 자원 관리',
+                                          style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white70),
                                         ),
-                                      ),
+                                        const SizedBox(height: 12),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: ElevatedButton.icon(
+                                                onPressed: () async {
+                                                  await userVM
+                                                      .addComfortCounts(1);
+                                                  if (context.mounted) {
+                                                    ScaffoldMessenger.of(
+                                                            context)
+                                                        .showSnackBar(
+                                                      const SnackBar(
+                                                          content:
+                                                              Text('위로 횟수 +1')),
+                                                    );
+                                                  }
+                                                },
+                                                icon: const Icon(Icons.favorite,
+                                                    size: 16),
+                                                label: const Text('위로 +1'),
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: Colors
+                                                      .pinkAccent
+                                                      .withOpacity(0.8),
+                                                  foregroundColor: Colors.white,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: ElevatedButton.icon(
+                                                onPressed: () async {
+                                                  await userVM
+                                                      .addComfortCounts(10);
+                                                  if (context.mounted) {
+                                                    ScaffoldMessenger.of(
+                                                            context)
+                                                        .showSnackBar(
+                                                      const SnackBar(
+                                                          content: Text(
+                                                              '위로 횟수 +10')),
+                                                    );
+                                                  }
+                                                },
+                                                icon:
+                                                    const Icon(Icons.favorite),
+                                                label: const Text('위로 +10'),
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor:
+                                                      Colors.pinkAccent,
+                                                  foregroundColor: Colors.white,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: ElevatedButton.icon(
+                                            onPressed: () async {
+                                              await userVM
+                                                  .addComfortCounts(100);
+                                              if (context.mounted) {
+                                                ScaffoldMessenger.of(context)
+                                                    .showSnackBar(
+                                                  SnackBar(
+                                                      content: Text(
+                                                          '위로 횟수 100회 충전 완료!')),
+                                                );
+                                              }
+                                            },
+                                            icon: const Icon(
+                                                Icons.favorite_border),
+                                            label: Text(
+                                                '위로 횟수 100회 보충 (현재: ${userVM.dailyComfortCount})'),
+                                            style: ElevatedButton.styleFrom(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      vertical: 16),
+                                              backgroundColor:
+                                                  Colors.deepPurpleAccent,
+                                              foregroundColor: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     );
                                   },
                                 ),
@@ -124,7 +270,6 @@ class AdminScreen extends StatelessWidget {
   }
 
   Widget _buildBlocksTab(BuildContext context) {
-    // Note: We need VentingViewModel here to Access local block list
     return Consumer<VentingViewModel>(
       builder: (context, ventingVM, child) {
         final blockedUsers = ventingVM.blockedUserIds.toList();
@@ -232,13 +377,12 @@ class AdminScreen extends StatelessWidget {
         itemCount: adminVM.reportedPosts.length,
         itemBuilder: (context, index) {
           final item = adminVM.reportedPosts[index];
-          // isDeleted is already filtered by VM, but safe to default
           final reasons =
               (item['reasons'] as List).cast<String>().toSet().toList();
 
           return Card(
             color: const Color(0xFF1E1E1E),
-            margin: const EdgeInsets.only(bottom: 8), // Reduced margin
+            margin: const EdgeInsets.only(bottom: 8),
             child: ExpansionTile(
               tilePadding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 0),

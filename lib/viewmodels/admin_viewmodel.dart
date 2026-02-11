@@ -23,65 +23,104 @@ class AdminViewModel with ChangeNotifier {
   ];
 
   final List<String> _adjectives = [
-    '익명의',
+    '화난',
+    '슬픈',
+    '익명',
     '지친',
     '배고픈',
-    '잠 못 드는',
-    '퇴사가 꿈인',
-    '월요병 걸린',
+    '졸린',
     '소심한',
-    '분노한',
-    '행복하고 싶은',
-    '로또 당첨된',
-    '감자 같은',
-    '고구마 먹은',
-    '매운맛',
-    '순한맛',
-    '집에 가고 싶은',
-    '야근하는',
-    '주말을 기다리는',
-    '다이어트 중인',
-    '운동하는'
+    '예민한',
+    '착한',
+    '차분한',
+    'Angry',
+    'Sad',
+    'Tired',
+    'Hungry',
+    'Sleepy',
+    'Kind',
+    'Calm',
+    'Cool',
+    'Hip',
+    'Lonely',
+    '매운',
+    '순한',
+    '진한',
+    '맑은',
+    '푸른',
+    '붉은',
+    '작은',
+    '커다란',
+    '빠른',
+    '느린'
   ];
 
   final List<String> _nouns = [
-    '다람쥐',
-    '회사원',
-    '곰',
-    '밤',
-    '행인',
-    '관종',
-    '환자',
-    '감자',
-    '고구마',
-    '개발자',
-    '디자이너',
-    '기획자',
-    '학생',
-    '취준생',
-    '프리랜서',
-    '예술가',
     '고양이',
     '강아지',
-    '호랑이',
+    '곰',
     '토끼',
     '오리',
-    '햄스터',
-    '앵무새'
+    '쥐',
+    '호랑이',
+    '사자',
+    '펭귄',
+    '햄찌',
+    'Cat',
+    'Dog',
+    'Bear',
+    'Rabbit',
+    'Duck',
+    'Mouse',
+    'Tiger',
+    'Lion',
+    'Penguin',
+    'Hamster',
+    '사람',
+    '행인',
+    '학생',
+    '직딩',
+    '취준생',
+    '백수',
+    '천사',
+    '악마',
+    '요정',
+    '영웅',
+    '바람',
+    '구름',
+    '바다',
+    '하늘',
+    '별',
+    '달',
+    '햇살',
+    '마음',
+    '기억',
+    '조각'
   ];
 
   String _generateRandomNickname() {
     final random = Random();
     String nickname = '';
 
-    // Retry loop to ensure nickname is 7 characters or less (including space/numbers)
-    // Most combinations should fit, but this guarantees it.
-    // e.g. "지친 곰99" (6 chars)
+    // Generate a nickname by combining adj + noun (7 chars max, no numbers)
+    int attempts = 0;
     do {
       final adj = _adjectives[random.nextInt(_adjectives.length)];
       final noun = _nouns[random.nextInt(_nouns.length)];
-      final num = random.nextInt(999);
-      nickname = '$adj $noun$num';
+
+      // Randomly decide whether to include a space (only if it fits)
+      if (random.nextBool() && (adj.length + noun.length + 1 <= 7)) {
+        nickname = '$adj $noun';
+      } else {
+        nickname = '$adj$noun';
+      }
+
+      // Fallback if it keeps failing (rare with short words)
+      attempts++;
+      if (attempts > 50) {
+        nickname = adj.substring(0, min(3, adj.length)) +
+            noun.substring(0, min(4, noun.length));
+      }
     } while (nickname.length > 7);
 
     return nickname;
@@ -296,5 +335,67 @@ class AdminViewModel with ChangeNotifier {
     _isLoading = false;
     _statusMessage = '완료! $successCount개의 글이 생성되었습니다.';
     notifyListeners();
+  }
+
+  Future<void> generateSeedFromText(String rawContent) async {
+    if (rawContent.trim().isEmpty) return;
+
+    _isLoading = true;
+    _statusMessage = '외부 데이터 가공 중...';
+    notifyListeners();
+
+    try {
+      final content = await AIService.getScrapedContentSeed(rawContent);
+
+      final random = Random();
+      final tag = _tags[random.nextInt(_tags.length)];
+      final nickname = _generateRandomNickname();
+      final level = 3 + random.nextInt(7);
+      final angerLevel = 50.0 + random.nextDouble() * 50.0; // Usually high
+      final timestamp = DateTime.now();
+
+      // Generate Comments (2 ~ 4)
+      final List<PublicComment> comments = [];
+      final commentCount = 2 + random.nextInt(3);
+      final tones = ['dc_inside', 'theqoo', 'fmkorea', 'none'];
+
+      for (int i = 0; i < commentCount; i++) {
+        final randomTone = tones[random.nextInt(tones.length)];
+        final commentContent = await AIService.getSeedCommentsForPost(content,
+            communityTone: randomTone);
+        final commentNick = _generateRandomNickname();
+
+        comments.add(PublicComment(
+          authorId: 'seed_commenter_scraped_$i',
+          nickname: commentNick,
+          content: commentContent,
+          timestamp: timestamp.add(Duration(minutes: 5 + random.nextInt(60))),
+          supportCount: random.nextInt(5),
+          comfortCount: random.nextInt(5),
+        ));
+      }
+
+      final post = PublicPost(
+          id: 'scraped_${DateTime.now().millisecondsSinceEpoch}',
+          authorId: 'seed_generator_scraped',
+          authorNickname: nickname,
+          content: content,
+          angerLevel: angerLevel,
+          timestamp: timestamp,
+          supportCount: random.nextInt(10),
+          comfortCount: random.nextInt(10),
+          tags: [tag],
+          authorLevel: level,
+          fontName: '기본 (고딕)',
+          comments: comments);
+
+      await _firestore.collection('posts').doc(post.id).set(post.toMap());
+      _statusMessage = '외부 데이터 연동 완료!';
+    } catch (e) {
+      _statusMessage = '오류 발생: $e';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 }

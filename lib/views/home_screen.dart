@@ -1,5 +1,6 @@
 import 'dart:io';
 import '../utils/app_fonts.dart';
+import '../utils/bold_first_line_controller.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -24,7 +25,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   double _angerLevel = 0.0;
-  final TextEditingController _textController = TextEditingController();
+  final TextEditingController _textController = BoldFirstLineController();
   final FocusNode _textFocusNode =
       FocusNode(); // Add focus node to control keyboard
   final ImagePicker _picker = ImagePicker();

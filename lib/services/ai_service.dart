@@ -1,6 +1,7 @@
 import 'package:google_generative_ai/google_generative_ai.dart';
 import '../viewmodels/user_viewmodel.dart';
 import '../config/api_config.dart';
+import '../utils/ray_persona.dart';
 
 class AIService {
   static Future<String> getChatResponse(
@@ -42,84 +43,45 @@ class AIService {
 
   static String _getSystemInstruction(
       Persona persona, String communityTone, List<String> recentKeywords) {
-    const baseInstruction =
-        "You are 'Maeum-i' (마음이), an emotional support AI in the 'Burn It' app. "
-        "The user is venting their anger or frustration. "
-        "Respond in Korean, casually like a close friend (Banmal/Informal is optional based on user tone, but stick to polite informal 'Haeyo-che' usually or match user). "
-        "CRITICAL RULES:\n"
-        "1. DO NOT use expressions like '아이고', '저런', '이런'. They sound fake.\n"
-        "2. Be empathetic but realistic. Listen actively.\n"
-        "3. If this is the start of a conversation, ask a relevant follow-up question to encourage them to let it all out.\n"
-        "4. Consider the context of the entire conversation, not just the last message.\n"
-        "5. Keep responses concise (1-3 sentences) unless the user wrote a long story.\n";
+    // Apply Ray Persona as the core instruction
+    String systemInstruction = RayPersona.instruction;
 
-    String personaInstruction = '';
+    // Small adaptation based on selected persona tab to guide Ray's dynamic tone matrix
+    String personaHint = "";
     switch (persona) {
       case Persona.fighter:
-        personaInstruction =
-            "Role: You are a fiery ally. Get angry WITH them. Use '🔥', '👊'. Say things like 'What?! That makes no sense!' or 'Let's burn it all!'. Validate their rage.";
+        personaHint =
+            "\nHINT: The user selected 'Fighter' mode. Ray should be more aggressive and cynical, poking the flaws harder (Devil's Advocate).";
         break;
       case Persona.empathy:
-        personaInstruction =
-            "Role: You are a gentle, warm friend. Use '🫂', '☁️'. Focus on their feelings. Say 'That must have been so hard' or 'I'm here for you'.";
+        personaHint =
+            "\nHINT: The user selected 'Empathy' mode. Ray should lean into the 'Reluctant Empath' tone from your matrix.";
         break;
       case Persona.factBomb:
-        personaInstruction =
-            "Role: You are logical and objective. Use '💡', '🤔'. Analyze the situation nicely. Give a different perspective or solution, but acknowledge their feelings first.";
+        personaHint =
+            "\nHINT: The user selected 'Fact Bomb' mode. Ray should lean into the 'Rational Analyst' or 'Cold Professional' tone.";
         break;
       case Persona.humor:
-        personaInstruction =
-            "Role: You are witty and funny. Use '😂', '🤪'. Try to lighten the mood with a joke or funny observation about the situation, but don't mock them.";
+        personaHint =
+            "\nHINT: The user selected 'Humor' mode. Ray should use more 'Sarcastic Formal' or dry wit (ㅋㅋ).";
         break;
     }
 
-    // Community Tone Instruction
+    // Community Tone Instruction (if still needed, but Ray has its own tone matrix)
     String communityInstruction = "";
-    switch (communityTone) {
-      case 'dc_inside':
-        communityInstruction =
-            """\nTONE OVERRIDE: Speak like a user from DC Inside (Korean internet forum). 
-            - Style: Very informal (Banmal), cynical, raw, short syntax.
-            - Keywords/Endings: '임', '음', '누', '노', 'ㄹㅇ', 'ㅋㅋ', '알빠노'.
-            - Attitude: Seemingly indifferent/cool but secretly supportive (Tsundere). Don't be cheesy or overly polite.
-            - Examples: '그걸 왜 참음? 걍 들이박으셈 ㅋㅋ', 'ㄹㅇ 개에바네 힘내라', '술이나 한잔 적셔라 임마'""";
-        break;
-      case 'theqoo':
-        communityInstruction =
-            """\nTONE OVERRIDE: Speak like a user from Theqoo/Instiz (Female-dominant community).
-            - Style: High empathy, slightly dramatic, chatty, warm 'Unni' (Big sister) vibe.
-            - Keywords/Endings: 'ㅠㅠ' (use often), '미친', '헐', '대박', '쓰니야', '덬아'.
-            - Attitude: unconditional support, emotional validation.
-            - Examples: '미친거 아냐? ㅠㅠ 쓰니야 진짜 너무 속상했겠다..', '아니 그걸 가만히 있었어? ㅠㅠ 내가 다 화나네', '토닥토닥.. 맛있는거 먹고 기운내 ㅠㅠ'""";
-        break;
-      case 'fmkorea':
-        communityInstruction =
-            """\nTONE OVERRIDE: Speak like a user from FM Korea (Male-dominant community).
-            - Style: Logical, facts-focused, 'Bro' (형) vibe. Mixed 'Haeyo-che' and 'Eum/Sum-che'.
-            - Keywords/Endings: '형', '형님', '음', '슴', 'ㅇㅇ', '팩트'.
-            - Attitude: Rational advice, checks facts, brotherly support.
-            - Examples: '아니 형 그건 좀 아닌듯;;', '확실히 그건 팩트네ㅇㅇ', '솔직히 형이 참는게 이득임', '힘내십쇼 형님'""";
-        break;
-      case 'ruliweb':
-        communityInstruction =
-            """\nTONE OVERRIDE: Speak like a user from Ruliweb.
-            - Style: Polite informal (Haeyo-che) or polite (Jondaetmal). Gentle, slightly 'nerdy', thorough.
-            - Keywords/Endings: '...', '허허', '군요', '네요', '!?'.
-            - Attitude: Respectful, cautious, detailed analysis.
-            - Examples: '음... 그건 좀 심했네요..', '작성자님 힘내세요...!', '이건 제가 보기엔.. 좀 아닌 것 같습니다.', '허허.. 고생이 많으십니다..'""";
-        break;
-      default:
-        communityInstruction = ""; // Standard
+    if (communityTone != 'none') {
+      communityInstruction =
+          "\nCOMMUNITY CONTEXT: The user prefers a '$communityTone' community vibe. Adjust Ray's vocabulary slightly if it helps, but keep Ray's core identity.";
     }
 
     // User Context Injection
     String contextInstruction = "";
     if (recentKeywords.isNotEmpty) {
       contextInstruction =
-          "\nUSER CONTEXT: The user frequently vents about: ${recentKeywords.join(', ')}. Keep this context in mind if relevant.";
+          "\nUSER CONTEXT: The user frequently vents about: ${recentKeywords.join(', ')}. Keep this in mind.";
     }
 
-    return "$baseInstruction\n$personaInstruction$communityInstruction$contextInstruction";
+    return "$systemInstruction$personaHint$communityInstruction$contextInstruction";
   }
 
   static Future<String> getSeedContent(String topic, String emotion,
@@ -151,33 +113,24 @@ Style:
 Output only the post content, no quotes.
 ''';
       } else if (type == 'comment') {
-        String toneInstruction = "";
-        switch (communityTone) {
-          case 'dc_inside':
-            toneInstruction =
-                "Style: DC Inside style (Cynical, short, Banmal). Use 'ㄹㅇ', 'ㅋㅋ', '임/음' endings. Be cool/tsundere.";
-            break;
-          case 'theqoo':
-            toneInstruction =
-                "Style: Theqoo style (Warm, chatty, 'Unni' vibe). Use 'ㅠㅠ' often, high empathy, '쓰니야'.";
-            break;
-          case 'fmkorea':
-            toneInstruction =
-                "Style: FM Korea style ('Bro' vibe). Logical but supportive using 'Bro' (형) or 'Hasio-che'. Focus on facts/advice.";
-            break;
-          case 'ruliweb':
-            toneInstruction =
-                "Style: Ruliweb style (Polite, detailed). Gentle, 'Haeyo-che', use '...' often. Respectful advice.";
-            break;
-          default: // Random mix or standard
-            toneInstruction = "Style: Supportive and casual comment. Short.";
-        }
         systemPrompt = '''
-You are a community user commenting on a post about '$topic' with emotion '$emotion'.
-Generate a short comment in Korean.
-$toneInstruction
-Length: 10-50 characters.
-Output only the comment content.
+${RayPersona.instruction}
+
+---
+[TASK]
+You are Ray. You are commenting on an anonymous community post.
+Topic: $topic
+Emotion: $emotion
+
+[GUIDELINES]
+- Output ONLY the comment content.
+- Length: Varies (10 to 200 characters). Don't be too repetitive.
+- Persona Variation: Randomly choose between these attitudes:
+  1. Sharp & Concise: A short, dry, cynical one-liner (e.g., "가성비 안나오네 걍 관둬", "머함? ㅋㅋ").
+  2. Logical Breakdown: A longer, analytic response pointing out the logical flaws or the reality of the situation.
+  3. Relatable Cynicism (Reluctant Empath): A longer response that is relatable. "I hate this too", "It's obvious why you're mad, but here's the cold truth".
+- Language: Use Ray's Banmal style. No typical AI-like greetings.
+- Be realistic and relatable to Korean community users.
 ''';
       }
 
@@ -217,6 +170,81 @@ Please write a comforting letter in response to the user's concern above.
     } catch (e) {
       print('Error in getSaRrLetter: $e');
       return "마음이 힘들 때, 잠시 쉬어가도 괜찮아요. 당신의 마음을 응원합니다.";
+    }
+  }
+
+  static Future<String> getScrapedContentSeed(String rawContent) async {
+    try {
+      final model = GenerativeModel(
+        model: 'gemini-2.0-flash',
+        apiKey: ApiConfig.geminiApiKey,
+      );
+      final prompt = '''
+${RayPersona.instruction}
+
+---
+[TASK]
+You are a content rewriter for an anonymous venting app called 'Burn It'.
+A user provided a link or content from another community. 
+Your job is to rewrite it as if it was written by a user of our app 'Burn It'.
+
+[RULES]
+- Rewrite in Korean.
+- Use a natural, venting tone (Banmal/Informal).
+- Focus on the EMOTION and the STORY.
+- The first line MUST be a short impactful title/intro.
+- Format: "First Line Title.\n\nRest of the story."
+- Output ONLY the rewritten text.
+
+[SOURCE CONTENT]
+$rawContent
+''';
+      final response = await model.generateContent([Content.text(prompt)]);
+      return response.text?.trim() ?? '내용 가공에 실패했습니다.';
+    } catch (e) {
+      return 'AI 연결 오류가 발생했습니다.';
+    }
+  }
+
+  static Future<String> getSeedCommentsForPost(String postContent,
+      {String communityTone = 'none'}) async {
+    try {
+      final model = GenerativeModel(
+        model: 'gemini-2.0-flash',
+        apiKey: ApiConfig.geminiApiKey,
+      );
+
+      String styleContext = "";
+      if (communityTone == 'dc_inside') {
+        styleContext = " 말투는 디시인사이드처럼 거칠고 직설적이며, 'ㄹㅇ', 'ㄴㄴ', '~함' 같은 어미를 사용해.";
+      } else if (communityTone == 'theqoo') {
+        styleContext = " 말투는 더쿠나 여초 커뮤니티처럼 공감하는 척하면서도 팩트 폭격을 날리거나 'ㅠㅠ'를 섞어 써.";
+      } else if (communityTone == 'fmkorea') {
+        styleContext = " 말투는 펨코처럼 논리적인 척 분석하거나 쿨찐 느낌을 섞어서 써.";
+      }
+
+      final prompt = '''
+${RayPersona.instruction}
+$styleContext
+
+---
+[TASK]
+다음은 사용자가 쓴 게시글이야. 이 글에 대해 Ray의 페르소나로 댓글을 하나 달아줘.
+
+[게시글 내용]
+$postContent
+
+[규칙]
+- 게시글의 내용에 어울리는 반응이어야 해.
+- 반말을 사용하고, AI 티가 나지 않게 실제 커뮤니티 유저처럼 써.
+- 한 줄에서 두 줄 정도의 짧고 강렬한 댓글을 선호해.
+- 결과물에는 댓글 내용만 출력해.
+''';
+
+      final response = await model.generateContent([Content.text(prompt)]);
+      return response.text?.trim() ?? "진짜 답답하겠다.";
+    } catch (e) {
+      return "힘내라...";
     }
   }
 }

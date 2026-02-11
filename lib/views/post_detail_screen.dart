@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../viewmodels/venting_viewmodel.dart';
 import '../viewmodels/user_viewmodel.dart';
+import '../utils/app_fonts.dart';
 
 class PostDetailScreen extends StatefulWidget {
   final PublicPost post;
@@ -171,23 +172,34 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   const SizedBox(height: 16),
                 ],
 
-                // Content (First line bold)
+                // Content (First line bold as subject)
                 RichText(
                   text: TextSpan(
-                    style: const TextStyle(color: Colors.white, height: 1.5),
+                    style: TextStyle(
+                      color: Colors.white,
+                      height: 1.5,
+                      fontFamily: AppFonts.getFont(widget.post.fontName)
+                          .fontFamily, // Optional: preserve font
+                    ),
                     children: [
-                      TextSpan(
-                        text: '${displayPost.content.split('\n').first}\n',
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                      TextSpan(
-                        text: displayPost.content.contains('\n')
-                            ? displayPost.content.substring(
-                                displayPost.content.indexOf('\n') + 1)
-                            : '', // If no newline, bold the whole thing (handled by first part), or maybe just bold first line.
-                        style: const TextStyle(fontSize: 14),
-                      ),
+                      if (displayPost.content.contains('\n')) ...[
+                        TextSpan(
+                          text: '${displayPost.content.split('\n').first}\n',
+                          style: const TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        TextSpan(
+                          text: displayPost.content
+                              .substring(displayPost.content.indexOf('\n') + 1),
+                          style: const TextStyle(fontSize: 15),
+                        ),
+                      ] else ...[
+                        TextSpan(
+                          text: displayPost.content,
+                          style: const TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      ],
                     ],
                   ),
                 ),

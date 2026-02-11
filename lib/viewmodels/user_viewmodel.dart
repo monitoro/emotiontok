@@ -142,7 +142,7 @@ class UserViewModel with ChangeNotifier {
     _isVibrationOn = prefs.getBool('isVibrationOn') ?? true;
     _isBiometricEnabled = prefs.getBool('isBiometricEnabled') ?? false;
 
-    _selectedFont = prefs.getString('selectedFont') ?? '나눔 펜 (손글씨)';
+    _selectedFont = prefs.getString('selectedFont') ?? '푸어 스토리 (동화책)';
     _defaultPersonaStr = prefs.getString('default_persona_str') ?? '전투';
     _communityTone = prefs.getString('community_tone') ?? 'none';
 
@@ -360,7 +360,7 @@ class UserViewModel with ChangeNotifier {
     _totalBurnCount = 0;
     _writingPoints = 0;
     _receivedPoints = 0;
-    _selectedFont = '나눔 펜 (손글씨)';
+    _selectedFont = '푸어 스토리 (동화책)';
     _isAdmin = false;
     _dailyComfortCount = 5;
     _lastLoginDate = null;

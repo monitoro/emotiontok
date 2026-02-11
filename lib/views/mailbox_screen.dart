@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../viewmodels/venting_viewmodel.dart';
 import '../models/letter_model.dart';
 import 'letter_detail_screen.dart';
@@ -17,7 +18,8 @@ class MailboxScreen extends StatelessWidget {
       backgroundColor: const Color(0xFF121212),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        title: const Text('마음 우체통', style: TextStyle(color: Colors.white)),
+        title:
+            Text('마음 우체통', style: GoogleFonts.poorStory(color: Colors.white)),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: letters.isEmpty
@@ -28,8 +30,8 @@ class MailboxScreen extends StatelessWidget {
                   Icon(Icons.mark_email_unread_outlined,
                       size: 64, color: Colors.grey[800]),
                   const SizedBox(height: 16),
-                  const Text('도착한 편지가 없어요.',
-                      style: TextStyle(color: Colors.grey)),
+                  Text('도착한 편지가 없어요.',
+                      style: GoogleFonts.poorStory(color: Colors.grey)),
                 ],
               ),
             )
@@ -97,7 +99,7 @@ class MailboxScreen extends StatelessWidget {
                       Expanded(
                         child: Text(
                           letter.title,
-                          style: const TextStyle(
+                          style: GoogleFonts.poorStory(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: 15,
@@ -121,14 +123,15 @@ class MailboxScreen extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     '${letter.sender} • ${DateFormat('MM/dd HH:mm').format(letter.timestamp)}',
-                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    style:
+                        GoogleFonts.poorStory(color: Colors.grey, fontSize: 12),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     letter.previewText,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: GoogleFonts.poorStory(
                       color: letter.isRead ? Colors.grey : Colors.white70,
                       fontSize: 13,
                     ),
