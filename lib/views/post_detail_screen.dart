@@ -5,7 +5,11 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../viewmodels/venting_viewmodel.dart';
 import '../viewmodels/user_viewmodel.dart';
-import '../utils/app_fonts.dart';
+
+import 'dart:math';
+
+import '../services/share_service.dart';
+import '../widgets/instagram_share_card.dart';
 
 class PostDetailScreen extends StatefulWidget {
   final PublicPost post;
@@ -19,8 +23,14 @@ class PostDetailScreen extends StatefulWidget {
 class _PostDetailScreenState extends State<PostDetailScreen> {
   final TextEditingController _commentController = TextEditingController();
   final FocusNode _commentFocusNode = FocusNode();
+  final GlobalKey _shareKey = GlobalKey(); // Key for screen capture
   String? _replyToCommentId; // Changed from int index to String UUID
   String? _replyToNickname;
+
+  // Share Feature State
+  PublicComment? _selectedCommentForShare;
+  double _commentRotationAngle = 0.0;
+  final Random _random = Random();
 
   @override
   void dispose() {
@@ -72,6 +82,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             '감정 상세 (${displayPost.tags.isNotEmpty ? displayPost.tags.first : '기타'})',
             style: const TextStyle(fontSize: 16)),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.share, color: Colors.orangeAccent),
+            onPressed: () {
+              _showShareCommentSelectionDialog(context, displayPost);
+            },
+          ),
           // Only show report/block for posts not authored by current user
           if (displayPost.authorId != userVM.userId)
             PopupMenuButton<String>(
@@ -109,164 +125,181 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             ),
         ],
       ),
-      body: Column(
+      body: Stack(
         children: [
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(24),
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 4, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: PublicPost.getLevelColor(displayPost.authorLevel)
-                            .withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                            color: PublicPost.getLevelColor(
-                                displayPost.authorLevel),
-                            width: 0.5),
-                      ),
-                      child: Text(
-                        'Lv.${displayPost.authorLevel}',
-                        style: TextStyle(
-                          color:
-                              PublicPost.getLevelColor(displayPost.authorLevel),
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(displayPost.authorNickname,
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            color: PublicPost.getLevelColor(
-                                displayPost.authorLevel))),
-                    const SizedBox(width: 8),
-                    // Compact Anger Level in Header
-                    Text('분노 ${displayPost.angerLevel.toInt()}%',
-                        style: const TextStyle(
-                            color: Colors.redAccent,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold)),
-                    const Spacer(),
-                    Text(timeStr,
-                        style:
-                            const TextStyle(color: Colors.grey, fontSize: 10)),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Image
-                if (displayPost.imagePath != null) ...[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: kIsWeb
-                        ? Image.network(displayPost.imagePath!)
-                        : Image.file(File(displayPost.imagePath!)),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
-                // Content (First line bold as subject)
-                RichText(
-                  text: TextSpan(
-                    style: TextStyle(
-                      color: Colors.white,
-                      height: 1.5,
-                      fontFamily: AppFonts.getFont(widget.post.fontName)
-                          .fontFamily, // Optional: preserve font
-                    ),
-                    children: [
-                      if (displayPost.content.contains('\n')) ...[
-                        TextSpan(
-                          text: '${displayPost.content.split('\n').first}\n',
-                          style: const TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                        TextSpan(
-                          text: displayPost.content
-                              .substring(displayPost.content.indexOf('\n') + 1),
-                          style: const TextStyle(fontSize: 15),
-                        ),
-                      ] else ...[
-                        TextSpan(
-                          text: displayPost.content,
-                          style: const TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                // Interaction Buttons
-                Consumer<VentingViewModel>(
-                  builder: (context, ventingVM, child) {
-                    return Row(
-                      children: [
-                        Expanded(
-                          child: _DetailInteractionButton(
-                            icon: Icons.fireplace,
-                            label: '장작', // Shortened label
-                            count: displayPost.supportCount,
-                            itemCount: ventingVM.firewoodCount,
-                            color: Colors.orange,
-                            onTap: () async {
-                              try {
-                                await ventingVM.addFirewood(displayPost.id);
-                              } catch (e) {
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(e.toString())),
-                                  );
-                                }
-                              }
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _DetailInteractionButton(
-                            icon: Icons.water_drop,
-                            label: '물', // Shortened label
-                            count: displayPost.comfortCount,
-                            itemCount: ventingVM.waterCount,
-                            color: Colors.blue,
-                            onTap: () async {
-                              try {
-                                await ventingVM.addWater(displayPost.id);
-                              } catch (e) {
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(e.toString())),
-                                  );
-                                }
-                              }
-                            },
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-                const SizedBox(height: 32),
-                const Divider(color: Colors.white24),
-                const SizedBox(height: 16),
-                const Text('공감 댓글',
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                const SizedBox(height: 16),
-                ...displayPost.comments.map((comment) =>
-                    _buildCommentTree(context, comment, displayPost)),
-              ],
+          // Hidden Widget for Capture
+          Positioned(
+            left: -9999, // Move off-screen
+            child: InstagramShareCard(
+              globalKey: _shareKey,
+              post: displayPost,
+              focusComment: _selectedCommentForShare,
+              rotationAngle: _commentRotationAngle,
             ),
           ),
-          _buildCommentInput(context, userVM, displayPost),
+          Column(
+            children: [
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.all(24),
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 4, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: PublicPost.getLevelColor(
+                                    displayPost.authorLevel)
+                                .withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                                color: PublicPost.getLevelColor(
+                                    displayPost.authorLevel),
+                                width: 0.5),
+                          ),
+                          child: Text(
+                            'Lv.${displayPost.authorLevel}',
+                            style: TextStyle(
+                              color: PublicPost.getLevelColor(
+                                  displayPost.authorLevel),
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(displayPost.authorNickname,
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: PublicPost.getLevelColor(
+                                    displayPost.authorLevel))),
+                        const SizedBox(width: 8),
+                        // Compact Anger Level in Header
+                        Text('분노 ${displayPost.angerLevel.toInt()}%',
+                            style: const TextStyle(
+                                color: Colors.redAccent,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold)),
+                        const Spacer(),
+                        Text(timeStr,
+                            style: const TextStyle(
+                                color: Colors.grey, fontSize: 10)),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Image
+                    if (displayPost.imagePath != null) ...[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: kIsWeb
+                            ? Image.network(displayPost.imagePath!)
+                            : Image.file(File(displayPost.imagePath!)),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // Content (First line bold as subject)
+                    RichText(
+                      text: TextSpan(
+                        style: const TextStyle(
+                          color: Colors.white,
+                          height: 1.5,
+                          // fontFamily: AppFonts.getFont(widget.post.fontName).fontFamily, // Enforce Gothic
+                        ),
+                        children: [
+                          if (displayPost.content.contains('\n')) ...[
+                            TextSpan(
+                              text:
+                                  '${displayPost.content.split('\n').first}\n',
+                              style: const TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                            TextSpan(
+                              text: displayPost.content.substring(
+                                  displayPost.content.indexOf('\n') + 1),
+                              style: const TextStyle(fontSize: 15),
+                            ),
+                          ] else ...[
+                            TextSpan(
+                              text: displayPost.content,
+                              style: const TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    // Interaction Buttons
+                    Consumer<VentingViewModel>(
+                      builder: (context, ventingVM, child) {
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: _DetailInteractionButton(
+                                icon: Icons.fireplace,
+                                label: '장작', // Shortened label
+                                count: displayPost.supportCount,
+                                itemCount: ventingVM.firewoodCount,
+                                color: Colors.orange,
+                                onTap: () async {
+                                  try {
+                                    await ventingVM.addFirewood(displayPost.id);
+                                  } catch (e) {
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(content: Text(e.toString())),
+                                      );
+                                    }
+                                  }
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _DetailInteractionButton(
+                                icon: Icons.water_drop,
+                                label: '물', // Shortened label
+                                count: displayPost.comfortCount,
+                                itemCount: ventingVM.waterCount,
+                                color: Colors.blue,
+                                onTap: () async {
+                                  try {
+                                    await ventingVM.addWater(displayPost.id);
+                                  } catch (e) {
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(content: Text(e.toString())),
+                                      );
+                                    }
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 32),
+                    const Divider(color: Colors.white24),
+                    const SizedBox(height: 16),
+                    const Text('공감 댓글',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16)),
+                    const SizedBox(height: 16),
+                    ...displayPost.comments.map((comment) =>
+                        _buildCommentTree(context, comment, displayPost)),
+                  ],
+                ),
+              ),
+              _buildCommentInput(context, userVM, displayPost),
+            ],
+          ),
         ],
       ),
     );
@@ -685,6 +718,182 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  void _showShareCommentSelectionDialog(BuildContext context, PublicPost post) {
+    // 1. Determine Default Best Comment
+    PublicComment? bestComment;
+    if (post.comments.isNotEmpty) {
+      final sortedComments = List<PublicComment>.from(post.comments)
+        ..sort((a, b) => b.supportCount.compareTo(a.supportCount));
+      if (sortedComments.isNotEmpty) {
+        bestComment = sortedComments.first;
+      }
+    }
+
+    // Temporary state for the dialog
+    PublicComment? tempSelectedComment = bestComment;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E1E1E),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.6,
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "공유할 댓글 선택",
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    "카드에 포함할 댓글을 선택해주세요 (기본값: 최고 장작)",
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // "No Comment" Option
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Radio<PublicComment?>(
+                      value: null,
+                      groupValue: tempSelectedComment,
+                      activeColor: Colors.orangeAccent,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          tempSelectedComment = value;
+                        });
+                      },
+                    ),
+                    title: const Text("댓글 없이 공유",
+                        style: TextStyle(color: Colors.white)),
+                  ),
+                  const Divider(color: Colors.white12),
+
+                  // Comment List
+                  Expanded(
+                    child: post.comments.isEmpty
+                        ? const Center(
+                            child: Text("댓글이 없습니다.",
+                                style: TextStyle(color: Colors.grey)))
+                        : ListView.separated(
+                            itemCount: post.comments.length,
+                            separatorBuilder: (context, index) =>
+                                const Divider(color: Colors.white12),
+                            itemBuilder: (context, index) {
+                              final comment = post.comments[index];
+                              final isBest = comment.id == bestComment?.id;
+                              return ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: Radio<PublicComment?>(
+                                  value: comment,
+                                  groupValue: tempSelectedComment,
+                                  activeColor: Colors.orangeAccent,
+                                  onChanged: (value) {
+                                    setDialogState(() {
+                                      tempSelectedComment = value;
+                                    });
+                                  },
+                                ),
+                                title: Row(
+                                  children: [
+                                    if (isBest) ...[
+                                      const Icon(Icons.local_fire_department,
+                                          color: Colors.orange, size: 16),
+                                      const SizedBox(width: 4),
+                                    ],
+                                    Text(comment.nickname,
+                                        style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14)),
+                                  ],
+                                ),
+                                subtitle: Text(
+                                  comment.content,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      color: Colors.white70, fontSize: 13),
+                                ),
+                                trailing: Text(
+                                  "장작 ${comment.supportCount}",
+                                  style: const TextStyle(
+                                      color: Colors.orange, fontSize: 10),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+
+                  // Share Action Button
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orangeAccent,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () async {
+                        // 1. Update State in Parent Widget
+                        setState(() {
+                          _selectedCommentForShare = tempSelectedComment;
+                          // 2. Generate Random Rotation (-15 to +15 degrees -> in radians)
+                          // 15 deg ~= 0.26 radians
+                          // Random double between -0.26 and 0.26
+                          final double maxRad = 15 * (pi / 180); // ~0.2618
+                          _commentRotationAngle =
+                              (_random.nextDouble() * 2 * maxRad) - maxRad;
+                        });
+
+                        Navigator.pop(context); // Close dialog
+
+                        // 3. Show loading snackbar
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('이미지 생성 중... 잠시만 기다려주세요.')),
+                        );
+
+                        // 4. Wait for Render
+                        await Future.delayed(const Duration(
+                            milliseconds:
+                                200)); // slightly longer wait for redraw
+
+                        // 5. Capture & Share
+                        if (mounted) {
+                          await ShareService.captureAndShare(_shareKey);
+                        }
+                      },
+                      child: const Text("공유하기",
+                          style: TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16)),
+                    ),
+                  )
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
