@@ -28,7 +28,7 @@ class _PixelShredAnimationState extends State<PixelShredAnimation>
     with SingleTickerProviderStateMixin {
   final GlobalKey _globalKey = GlobalKey();
   late AnimationController _controller;
-  List<_Particle> _particles = [];
+  final List<_Particle> _particles = [];
   bool _showParticles = false;
   ui.Image? _capturedImage;
   late AudioPlayer _sfxPlayer;

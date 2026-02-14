@@ -131,7 +131,7 @@ class AdminViewModel with ChangeNotifier {
 
   List<Map<String, dynamic>> _reportedPosts =
       []; // {postId, reason, reporterId, content...}
-  List<Map<String, dynamic>> _blockStats =
+  final List<Map<String, dynamic>> _blockStats =
       []; // {blockerId, blockedId, timestamp}
 
   List<Map<String, dynamic>> get reportedPosts => _reportedPosts;
@@ -255,9 +255,9 @@ class AdminViewModel with ChangeNotifier {
         final tag = availableTags[random.nextInt(availableTags.length)];
         // Map tag to topic for AI
         String topic = tag;
-        if (tag == '직장')
+        if (tag == '직장') {
           topic = '직장 상사/야근/업무';
-        else if (tag == '관계')
+        } else if (tag == '관계')
           topic = '친구/인간관계/싸움';
         else if (tag == '연애')
           topic = '이별/짝사랑/연애고민';

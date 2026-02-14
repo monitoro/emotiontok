@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class BoldFirstLineController extends TextEditingController {
-  BoldFirstLineController({String? text}) : super(text: text);
+  BoldFirstLineController({super.text});
 
   @override
   TextSpan buildTextSpan({

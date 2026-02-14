@@ -84,7 +84,7 @@ class _AngerMemoFieldState extends State<AngerMemoField> {
     final currentLineColor =
         Color.lerp(_lineColor, _angryLineColor, _angerIntensity)!;
     // Text color fixed to black/grey as requested
-    final textColor = Colors.black87;
+    const textColor = Colors.black87;
 
     return Transform.rotate(
       angle:
@@ -138,29 +138,27 @@ class _AngerMemoFieldState extends State<AngerMemoField> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
               child: TextField(
-                focusNode: widget.focusNode,
+                focusNode:
+                    widget.focusNode, // Use external focus node from parent
                 controller: widget.controller,
                 onChanged: _onTextChanged,
+                autofocus: false, // Prevent auto-focus
                 maxLines: null,
                 style: AppFonts.getFont(
                   userVM.selectedFont,
-                  textStyle: TextStyle(
+                  textStyle: const TextStyle(
                     color: textColor,
-                    fontSize: 16,
+                    fontSize: 16, // Reduced from 20
                     height: 1.5,
                   ),
                 ),
-                // This is a simplified way to highlight the first line.
-                // For a more professional way, we'd use a custom TextEditingController.
-                // However, since we want to bold ONLY the first line until enter,
-                // we'll apply it during rendering of the value if possible or via a custom controller.
-                // Let's use buildTextSpan in a custom controller in the parent if possible,
-                // but for now, let's at least ensure the DISPLAY is bolded.
                 cursorColor:
                     _angerIntensity > 0.5 ? Colors.white : Colors.black,
                 decoration: InputDecoration(
                   hintText: widget.hintText,
-                  hintStyle: TextStyle(color: textColor.withOpacity(0.5)),
+                  hintStyle: TextStyle(
+                    color: textColor.withOpacity(0.5),
+                  ),
                   border: InputBorder.none,
                 ),
               ),

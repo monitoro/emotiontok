@@ -322,7 +322,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               color: Colors.grey, fontSize: 11)), // Reduced font
       trailing: Switch(
         value: value,
-        activeColor: const Color(0xFFFF4D00),
+        activeThumbColor: const Color(0xFFFF4D00),
         onChanged: onChanged,
         materialTapTargetSize: MaterialTapTargetSize
             .shrinkWrap, // Reduce switch touch area padding visually

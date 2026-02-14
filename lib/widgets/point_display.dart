@@ -38,7 +38,7 @@ class PointDisplay extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             '$count',
-            style: TextStyle(
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 12,
               fontWeight: FontWeight.bold,

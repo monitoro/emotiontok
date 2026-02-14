@@ -571,7 +571,7 @@ class VentingViewModel with ChangeNotifier {
           await rootBundle.loadString('assets/data/sarr_prompt.txt');
 
       // Add instruction for Title generation (Emotional Essay Style, Korean)
-      final String instruction =
+      const String instruction =
           "\n\n[SYSTEM INSTRUCTION]: Please write a comforting letter based on the user's worry. "
           "IMPORTANT: The VERY FIRST LINE of your response MUST be an emotional, essay-like title IN KOREAN. "
           "It should sound poetic and empathetic, like a chapter title from a self-help book. "
@@ -589,7 +589,7 @@ class VentingViewModel with ChangeNotifier {
       String contentBody = contentRaw;
 
       // Check first line for Title:
-      final LineSplitter ls = const LineSplitter();
+      const LineSplitter ls = LineSplitter();
       final List<String> lines = ls.convert(contentRaw);
 
       if (lines.isNotEmpty) {

@@ -84,8 +84,9 @@ class _SquareScreenState extends State<SquareScreen> {
                       icon: Icons.sort,
                       label: _getSortLabel(ventingVM.sortType),
                       onSelected: () {
-                        if (!_isSelectionMode)
+                        if (!_isSelectionMode) {
                           _showSortMenu(context, ventingVM);
+                        }
                       },
                     ),
                     const SizedBox(width: 12),
@@ -105,8 +106,9 @@ class _SquareScreenState extends State<SquareScreen> {
                       icon: Icons.calendar_today,
                       label: _getPeriodLabel(ventingVM.filterPeriod),
                       onSelected: () {
-                        if (!_isSelectionMode)
+                        if (!_isSelectionMode) {
                           _showPeriodMenu(context, ventingVM);
+                        }
                       },
                     ),
                   ],
@@ -205,35 +207,17 @@ class _SquareScreenState extends State<SquareScreen> {
                                               CrossAxisAlignment.start,
                                           children: [
                                             Expanded(
-                                              child: RichText(
+                                              child: Text(
+                                                post.content,
+                                                style: TextStyle(
+                                                    fontSize: 15,
+                                                    height: 1.2,
+                                                    color: ventingVM
+                                                            .isPostRead(post.id)
+                                                        ? Colors.white38
+                                                        : Colors.white),
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
-                                                text: TextSpan(
-                                                  style: TextStyle(
-                                                      fontSize: 15,
-                                                      height: 1.2,
-                                                      color:
-                                                          ventingVM.isPostRead(
-                                                                  post.id)
-                                                              ? Colors.white38
-                                                              : Colors.white),
-                                                  children: [
-                                                    TextSpan(
-                                                      text: post.content
-                                                          .split('\n')
-                                                          .first,
-                                                      style: const TextStyle(
-                                                          fontWeight:
-                                                              FontWeight.bold),
-                                                    ),
-                                                    if (post.content
-                                                        .contains('\n'))
-                                                      TextSpan(
-                                                        text:
-                                                            ' ${post.content.substring(post.content.indexOf('\n') + 1)}',
-                                                      ),
-                                                  ],
-                                                ),
                                               ),
                                             ),
                                             if (post.imagePath != null) ...[
@@ -257,80 +241,30 @@ class _SquareScreenState extends State<SquareScreen> {
                                             // Edit/Delete Buttons - Hide in selection mode to prevent conflicts
                                             if (!_isSelectionMode &&
                                                 userVM.userId != null &&
-                                                (post.authorId ==
-                                                        userVM.userId ||
-                                                    userVM.isAdmin))
+                                                post.authorId == userVM.userId)
                                               Row(
                                                 mainAxisSize: MainAxisSize.min,
                                                 children: [
-                                                  if (post.authorId ==
-                                                      userVM.userId) ...[
-                                                    const SizedBox(width: 8),
-                                                    GestureDetector(
-                                                      onTap: () =>
-                                                          _showEditDialog(
-                                                              context,
-                                                              ventingVM,
-                                                              post),
-                                                      child: const Icon(
-                                                          Icons.edit,
-                                                          size: 16,
-                                                          color: Colors.grey),
-                                                    ),
-                                                  ],
                                                   const SizedBox(width: 8),
-                                                  if (userVM.isAdmin) ...[
-                                                    GestureDetector(
-                                                      onTap: () async {
-                                                        final confirm =
-                                                            await showDialog<
-                                                                    bool>(
-                                                                context:
-                                                                    context,
-                                                                builder:
-                                                                    (context) =>
-                                                                        AlertDialog(
-                                                                          backgroundColor:
-                                                                              const Color(0xFF1E1E1E),
-                                                                          title:
-                                                                              const Text('게시글 숨김'),
-                                                                          content:
-                                                                              const Text('이 게시글을 광장에서 숨기시겠습니까?'),
-                                                                          actions: [
-                                                                            TextButton(
-                                                                                onPressed: () => Navigator.pop(context, false),
-                                                                                child: const Text('취소')),
-                                                                            TextButton(
-                                                                                onPressed: () => Navigator.pop(context, true),
-                                                                                child: const Text('숨기기', style: TextStyle(color: Colors.orangeAccent))),
-                                                                          ],
-                                                                        ));
-                                                        if (confirm == true) {
-                                                          await ventingVM
-                                                              .hidePost(
-                                                                  post.id);
-                                                        }
-                                                      },
-                                                      child: const Icon(
-                                                          Icons.visibility_off,
-                                                          size: 16,
-                                                          color: Colors.orange),
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                  ],
+                                                  GestureDetector(
+                                                    onTap: () =>
+                                                        _showEditDialog(context,
+                                                            ventingVM, post),
+                                                    child: const Icon(
+                                                        Icons.edit,
+                                                        size: 16,
+                                                        color: Colors.grey),
+                                                  ),
+                                                  const SizedBox(width: 8),
                                                   GestureDetector(
                                                     onTap: () => _confirmDelete(
                                                         context,
                                                         post.id,
                                                         ventingVM),
-                                                    child: Icon(Icons.delete,
+                                                    child: const Icon(
+                                                        Icons.delete,
                                                         size: 16,
-                                                        color: userVM.isAdmin &&
-                                                                post.authorId !=
-                                                                    userVM
-                                                                        .userId
-                                                            ? Colors.redAccent
-                                                            : Colors.grey),
+                                                        color: Colors.grey),
                                                   ),
                                                 ],
                                               ),
@@ -433,8 +367,8 @@ class _SquareScreenState extends State<SquareScreen> {
                                                       duration: 50);
                                                 }
                                                 try {
-                                                  await ventingVM
-                                                      .addFirewood(post.id);
+                                                  await ventingVM.addFirewood(
+                                                      post.id, userVM);
                                                 } catch (e) {
                                                   if (!context.mounted) return;
                                                   ScaffoldMessenger.of(context)
@@ -461,8 +395,8 @@ class _SquareScreenState extends State<SquareScreen> {
                                                       duration: 50);
                                                 }
                                                 try {
-                                                  await ventingVM
-                                                      .addWater(post.id);
+                                                  await ventingVM.addWater(
+                                                      post.id, userVM);
                                                 } catch (e) {
                                                   if (!context.mounted) return;
                                                   ScaffoldMessenger.of(context)

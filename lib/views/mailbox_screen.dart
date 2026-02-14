@@ -82,7 +82,7 @@ class MailboxScreen extends StatelessWidget {
           children: [
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: Colors.white10,
                 shape: BoxShape.circle,
               ),

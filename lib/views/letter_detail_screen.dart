@@ -181,13 +181,13 @@ class _LetterDetailScreenState extends State<LetterDetailScreen> {
           return Container(
             margin: const EdgeInsets.symmetric(vertical: 12),
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
-              borderRadius: const BorderRadius.only(
+            decoration: const BoxDecoration(
+              color: Color(0xFF1E1E1E),
+              borderRadius: BorderRadius.only(
                 topRight: Radius.circular(8),
                 bottomRight: Radius.circular(8),
               ),
-              border: const Border(
+              border: Border(
                 left: BorderSide(color: Color(0xFFFFD700), width: 3),
               ),
             ),

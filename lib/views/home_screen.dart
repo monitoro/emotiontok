@@ -1,6 +1,5 @@
 import 'dart:io';
 import '../utils/app_fonts.dart';
-import '../utils/bold_first_line_controller.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -11,9 +10,12 @@ import '../viewmodels/venting_viewmodel.dart';
 import '../widgets/point_display.dart';
 import '../widgets/pixel_shred_animation.dart';
 import '../painter/graph_paper_painter.dart';
+import '../widgets/anger_memo_field.dart';
 import '../widgets/ai_chat_dialog.dart';
-import '../widgets/anger_memo_field.dart'; // Moved here as per instruction
-import 'mailbox_screen.dart';
+import '../widgets/attendance_dialog.dart';
+import '../utils/bold_title_text_editing_controller.dart';
+
+// ... (existing imports)
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,7 +27,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   double _angerLevel = 0.0;
-  final TextEditingController _textController = BoldFirstLineController();
+  // Use BoldTitleTextEditingController
+  late BoldTitleTextEditingController _textController;
   final FocusNode _textFocusNode =
       FocusNode(); // Add focus node to control keyboard
   final ImagePicker _picker = ImagePicker();
@@ -58,19 +61,27 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
+
+    _textController = BoldTitleTextEditingController();
+
     _sfxPlayer = AudioPlayer();
     _risingSfxPlayer = AudioPlayer();
 
-    // Listen for new letter event
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<VentingViewModel>(context, listen: false)
-          .addListener(_onVentingVMChange);
-    });
-
-    // Check daily recharge
+    // Check daily recharge & attendance
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final userVM = Provider.of<UserViewModel>(context, listen: false);
-      if (userVM.isJustRecharged) {
+
+      // Attendance Dialog has higher priority
+      if (userVM.showAttendanceDialog) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AttendanceDialog(
+            currentStreak: userVM.consecutiveAttendanceDays,
+            rewardPoints: userVM.attendanceRewardPoints,
+          ),
+        );
+      } else if (userVM.isJustRecharged) {
         _showRechargeToast(context, userVM.dailyComfortCount);
         userVM.consumeRechargeFlag();
       }
@@ -120,82 +131,8 @@ class _HomeScreenState extends State<HomeScreen>
     overlay.insert(entry);
   }
 
-  void _onVentingVMChange() {
-    if (!mounted) return;
-    final vm = Provider.of<VentingViewModel>(context, listen: false);
-    if (vm.hasNewLetter) {
-      vm.consumeNewLetterEvent();
-      _showLetterArrivedDialog();
-    }
-  }
-
-  void _showLetterArrivedDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2A2A2A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFF4D00).withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.mail_rounded,
-                  size: 48, color: Color(0xFFFF4D00)),
-            ),
-            const SizedBox(height: 16),
-            const Text('쪽지가 도착했어요!',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('마음 우체통을 확인해보세요.',
-                style: TextStyle(color: Colors.grey, fontSize: 14)),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('나중에', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (context) => const MailboxScreen()));
-            },
-            style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF4D00),
-                foregroundColor: Colors.white),
-            child: const Text('보러가기'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   void dispose() {
-    // Remove listener safely
-    // Note: Provider might be disposed already, but removeListener is safe on living instance
-    // However, we don't have a direct reference easily unless we stored it.
-    // Ideally we should store the wrapper or check mounted.
-    // Actually, typically we just let it be GC'd or remove if we have ref.
-    // Better pattern:
-    // ref.removeListener(_onVentingVMChange);
-    // But since we didn't store ref, let's rely on standard practice or use a StatefulWidget wrapper.
-    // For now, to avoid complexity with context access in dispose:
-    // We'll skip removeListener here as it's the Main Screen typically living forever,
-    // or we could store the provider in initState.
-    // Let's store it.
-
     _sfxPlayer.dispose();
     _risingSfxPlayer.dispose();
     _pulseController.dispose();
@@ -319,10 +256,6 @@ class _HomeScreenState extends State<HomeScreen>
               ScaffoldMessenger.of(context)
                   .showSnackBar(const SnackBar(content: Text('광장에 공유되었습니다.')));
             }
-          }
-
-          if (context.mounted) {
-            ventingVM.triggerBackgroundLetter(text);
           }
         },
         child: Material(
@@ -546,42 +479,39 @@ class _HomeScreenState extends State<HomeScreen>
         ),
         backgroundColor: Colors.transparent,
         actions: [
-          Stack(
+          const PointDisplay(),
+          const SizedBox(width: 8),
+          Row(
             children: [
-              IconButton(
-                icon: const Icon(Icons.mail_outline, color: Colors.white),
-                onPressed: () {
-                  Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const MailboxScreen()));
+              Text(
+                ventingVM.shareToSquare ? '광장에 공유' : '나만 보기',
+                style: TextStyle(
+                  color: ventingVM.shareToSquare
+                      ? const Color(0xFFFF4D00)
+                      : Colors.grey,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Switch(
+                value: ventingVM.shareToSquare,
+                activeThumbColor: const Color(0xFFFF4D00),
+                onChanged: (value) {
+                  ventingVM.setShareToSquare(value);
+                  // If turning ON, reset confirmation so they see the dialog again next time
+                  if (value) setState(() => _hasConfirmedShare = false);
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(value ? '광장에 공유됩니다' : '나만 봅니다'),
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
                 },
               ),
-              if (ventingVM.unreadLetterCount > 0)
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFFF4D00),
-                      shape: BoxShape.circle,
-                    ),
-                    constraints:
-                        const BoxConstraints(minWidth: 16, minHeight: 16),
-                    child: Text(
-                      '${ventingVM.unreadLetterCount}',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
+              const SizedBox(width: 8),
             ],
           ),
-          const PointDisplay(),
         ],
       ),
       body: GestureDetector(
@@ -593,10 +523,52 @@ class _HomeScreenState extends State<HomeScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Comfort Count Badge (Persona selection removed)
+                // SizedBox(height: 16) removed
+
+                // Persona Selector & Comfort Count Row
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: ['전투', '유머', '팩폭', '랜덤'].map((p) {
+                            final isSelected = _selectedPersonaStr == p;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ChoiceChip(
+                                label: Text(p),
+                                selected: isSelected,
+                                onSelected: (selected) {
+                                  if (selected) {
+                                    setState(() => _selectedPersonaStr = p);
+                                  }
+                                },
+                                selectedColor: const Color(0xFFFF4D00),
+                                backgroundColor: Colors.white10,
+                                labelStyle: TextStyle(
+                                  color:
+                                      isSelected ? Colors.white : Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                  side: BorderSide(
+                                    color: isSelected
+                                        ? const Color(0xFFFF4D00)
+                                        : Colors.transparent,
+                                  ),
+                                ),
+                                showCheckmark: false,
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+
+                    // Comfort Count Badge
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 6),
@@ -684,40 +656,12 @@ class _HomeScreenState extends State<HomeScreen>
                       icon: const Icon(Icons.image, color: Colors.grey),
                       onPressed: () => _pickImage(ventingVM),
                     ),
-                    const SizedBox(width: 12),
-                    // Shared Toggle Moved Here
-                    Row(
-                      children: [
-                        Text(
-                          ventingVM.shareToSquare ? '광장 공유' : '나만 보기',
-                          style: TextStyle(
-                            color: ventingVM.shareToSquare
-                                ? const Color(0xFFFF4D00)
-                                : Colors.grey,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Transform.scale(
-                          scale: 0.8,
-                          child: Switch(
-                            value: ventingVM.shareToSquare,
-                            activeColor: const Color(0xFFFF4D00),
-                            onChanged: (value) {
-                              ventingVM.setShareToSquare(value);
-                              if (value)
-                                setState(() => _hasConfirmedShare = false);
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
                     const Spacer(),
-                    const Text('태그',
+                    const Text('태그 선택',
                         style: TextStyle(color: Colors.white70, fontSize: 12)),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.05),
                         borderRadius: BorderRadius.circular(20),
@@ -729,10 +673,9 @@ class _HomeScreenState extends State<HomeScreen>
                           value: _selectedTag,
                           dropdownColor: const Color(0xFF2A2A2A),
                           icon: const Icon(Icons.arrow_drop_down,
-                              color: Colors.grey, size: 18), // Smaller icon
+                              color: Colors.grey),
                           style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 13), // Smaller text
+                              color: Colors.white, fontSize: 14),
                           onChanged: (String? newValue) {
                             setState(() {
                               _selectedTag = newValue!;

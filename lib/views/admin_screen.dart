@@ -217,7 +217,7 @@ class _AdminScreenState extends State<AdminScreen> {
                                               if (context.mounted) {
                                                 ScaffoldMessenger.of(context)
                                                     .showSnackBar(
-                                                  SnackBar(
+                                                  const SnackBar(
                                                       content: Text(
                                                           '위로 횟수 100회 충전 완료!')),
                                                 );
@@ -353,8 +353,9 @@ class _AdminScreenState extends State<AdminScreen> {
   }
 
   Widget _buildReportsTab(AdminViewModel adminVM) {
-    if (adminVM.isLoading)
+    if (adminVM.isLoading) {
       return const Center(child: CircularProgressIndicator());
+    }
 
     if (adminVM.reportedPosts.isEmpty) {
       return Center(
